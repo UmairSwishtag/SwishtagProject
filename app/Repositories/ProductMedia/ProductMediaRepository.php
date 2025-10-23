@@ -34,7 +34,10 @@ class ProductMediaRepository implements ProductMediaRepositoryInterface
     }
     public function updateOrCreate(array $data)
     {
-        $media = $this->model->updateOrCreate($data);
+        $media = $this->model->updateOrCreate([
+            'shopify_product_media_id' => $data['shopify_product_media_id'],
+            'product_id' => $data['product_id']
+        ], (array) $data);
         return $media;
     }
     public function delete(int $id)

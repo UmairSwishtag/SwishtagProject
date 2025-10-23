@@ -157,7 +157,7 @@ trait ShopifyProductTrait
         $productVarients = [];
         foreach ($variants as $varient) {
             $productVarients[] = [
-                "shopify_product_Varient_id" => $varient->id,
+                "shopify_product_varient_id" => $varient->id,
                 'shopify_inventory_item_id' => $varient->inventory_item_id,
                 'title' => $varient->title,
                 'sku' => $varient->sku,

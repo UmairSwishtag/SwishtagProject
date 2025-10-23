@@ -22,7 +22,7 @@ class ProductVarientRepository implements ProductVarientRepositoryInterface
     }
     public function getByShopifyId(int $id)
     {
-        $variant = $this->model->where('shopify_product_Varient_id', $id)->first();
+        $variant = $this->model->where('shopify_product_varient_id', $id)->first();
         return $variant;
     }
     public function getByProductId(int $id)
@@ -32,7 +32,9 @@ class ProductVarientRepository implements ProductVarientRepositoryInterface
     }
     public function updateOrCreate(array $data)
     {
-        $productVarient = $this->model->updateOrCreate($data);
+        $productVarient = $this->model->updateOrCreate([
+            'shopify_product_varient_id' => $data['shopify_product_varient_id']
+        ], (array) $data);
         return $productVarient;
     }
     public function delete(int $id)

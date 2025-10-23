@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Repositories\Product;
 
 use App\Models\Products\Product;
@@ -45,7 +46,9 @@ class ProductRepository implements ProductRepositoryInterface
         $medias = $data['media'];
         unset($data['media']);
 
-        $product = $this->model->updateOrCreate($data);
+        $product = $this->model->updateOrCreate([
+            'shopify_product_id' => $data['shopify_product_id']
+        ], (array) $data);
 
         foreach ($varients as $varient) {
             $varient['product_id'] = $product->id;
@@ -73,4 +76,3 @@ class ProductRepository implements ProductRepositoryInterface
         $product->delete();
     }
 }
-

@@ -201,6 +201,7 @@ trait ShopifyOrderTrait
                 $order = $this->order->getByShopifyId($order->id);
                 if (!$order) {
                     Log::info("Order May be deleted: " . json_encode($order, JSON_PRETTY_PRINT));
+                    DB::rollBack();
                     return true;
                 }
             }

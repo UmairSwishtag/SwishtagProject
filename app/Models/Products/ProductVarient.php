@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class ProductVarient extends Model
 {
     protected $fillable = [
-        'shopify_product_Varient_id',
+        'shopify_product_varient_id',
         'product_id',
         'sku',
         'price',
