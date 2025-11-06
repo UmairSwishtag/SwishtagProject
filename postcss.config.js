@@ -1,6 +1,12 @@
 export default {
     plugins: {
-        tailwindcss: {},
-        autoprefixer: {},
+        '@tailwindcss/postcss': {
+            content: ["./resources/js/**/*.jsx", "./resources/views/**/*.blade.php"],
+            important: true
+        },
+
+        // @ prefixer: {},
+        autoprefixer: {
+        },
     },
 };
