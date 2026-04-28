@@ -2,6 +2,7 @@
 
 use Osiset\ShopifyApp\Util;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 
@@ -32,6 +33,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/search', [DashboardController::class, 'orderSeacrhfilter'])->name('search');
+    Route::get('/figma', function () {
+        return Inertia::render('FigmaApp');
+    })->name('figma');
 
 });
 
