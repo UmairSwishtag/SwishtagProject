@@ -71,7 +71,40 @@ export default function App() {
 
   const dateGroups = useMemo(() => groupByDate(filteredChanges), [filteredChanges]);
 
-  const selectedProduct = selectedProductName ? productDetails[selectedProductName] ?? null : null;
+  const selectedProduct = useMemo(() => {
+    if (!selectedProductName) return null;
+
+    // If we have a full product entry, return it
+    const full = productDetails[selectedProductName];
+    if (full) return full;
+
+    // Fallback: build a minimal product object from the changes list so
+    // the drawer can open for items that don't have a full productDetails entry.
+    const changesForProduct = sortedChanges.filter((c) => c.productName === selectedProductName);
+    if (changesForProduct.length === 0) return null;
+
+    const first = changesForProduct[0];
+    const priceChange = changesForProduct.find((c) => c.changeType === 'price');
+    const inventoryChange = changesForProduct.find((c) => c.changeType === 'inventory');
+
+    const parseInventory = (val) => {
+      if (!val) return 0;
+      const m = String(val).match(/(\d+)/);
+      return m ? Number(m[1]) : 0;
+    };
+
+    return {
+      id: `fallback-${first.sku ?? first.productName}`,
+      name: selectedProductName,
+      image: first.productImage,
+      currentPrice: priceChange ? priceChange.newValue : (first.newValue ?? ''),
+      currentInventory: inventoryChange ? parseInventory(inventoryChange.newValue) : parseInventory(first.newValue),
+      sku: first.sku,
+      status: 'active',
+      category: 'Uncategorized',
+      changes: changesForProduct,
+    };
+  }, [selectedProductName, productDetails, sortedChanges]);
 
   const handleItemClick = (productName) => setSelectedProductName(productName);
 
