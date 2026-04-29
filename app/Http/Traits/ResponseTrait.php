@@ -9,7 +9,7 @@ trait ResponseTrait
 {
     protected function render(string $component, array $props = [])
     {
-        $prefix = env('SHOPIFY_APPBRIDGE_ENABLED') ? 'Embedded/' : 'NonEmbedded/';
+        $prefix = env('SHOPIFY_APPBRIDGE_ENABLED') ? 'Embedded/' : 'Pages/';
         return Inertia::render($prefix . $component, $props);
     }
     protected function sendResponse($data = [], $message = 'Success', $code = 200)

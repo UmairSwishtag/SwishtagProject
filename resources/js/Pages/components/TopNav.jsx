@@ -12,7 +12,7 @@ import {
   Package,
   Wifi,
 } from 'lucide-react';
-
+import { Link } from '@inertiajs/react';
 export function TopNav() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications] = useState([
@@ -21,6 +21,12 @@ export function TopNav() {
     { id: 3, text: 'Bulk update completed (12 items)', time: '3h ago', unread: false },
   ]);
   const unreadCount = notifications.filter((n) => n.unread).length;
+
+const navItems = [
+  { icon: BarChart2, label: 'Dashboard', href: '/dashboard' },
+  { icon: Package, label: 'Products', href: '/products' },
+  { icon: Settings, label: 'Settings', href: '/settings' },
+];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-[#1a1a2e] border-b border-white/10 flex items-center px-4 gap-3">
@@ -40,25 +46,22 @@ export function TopNav() {
         <ChevronDown size={12} className="text-white/40" />
       </button>
 
-      <nav className="hidden lg:flex items-center gap-0.5 ml-2">
-        {[
-          { icon: BarChart2, label: 'Dashboard', active: true },
-          { icon: Package, label: 'Products', active: false },
-          { icon: Settings, label: 'Settings', active: false },
-        ].map(({ icon: Icon, label, active }) => (
-          <button
-            key={label}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-              active
-                ? 'bg-white/15 text-white'
-                : 'text-white/50 hover:text-white/80 hover:bg-white/8'
-            }`}
-          >
-            <Icon size={13} />
-            {label}
-          </button>
-        ))}
-      </nav>
+    <nav className="hidden lg:flex items-center gap-0.5 ml-2">
+  {navItems.map(({ icon: Icon, label, active, href }) => (
+    <Link
+      key={label}
+      href={href}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+        active
+          ? 'bg-white/15 text-white'
+          : 'text-white/50 hover:text-white/80 hover:bg-white/8'
+      }`}
+    >
+      <Icon size={13} />
+      {label}
+    </Link>
+  ))}
+</nav>
 
       <div className="flex-1" />
 

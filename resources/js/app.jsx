@@ -12,11 +12,12 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) =>
-        resolvePageComponent(
-            `./Pages/${name}.jsx`,
-            import.meta.glob('./Pages/**/*.jsx'),
-        ),
+    resolve: (name) => {
+        // Server may return component names with a folder prefix (e.g. "Pages/MainDashboard" or "Embedded/SomePage").
+        // If so, resolve to `./<ReturnedName>.jsx`. Otherwise resolve to `./Pages/<name>.jsx`.
+        const path = name.includes('/') ? `./${name}.jsx` : `./Pages/${name}.jsx`;
+        return resolvePageComponent(path, import.meta.glob('./Pages/**/*.jsx'));
+    },
     setup({ el, App, props }) {
         const root = createRoot(el);
 

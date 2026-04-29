@@ -1,4 +1,4 @@
-// Entry point adapted from the Figma export (renamed to .jsx)
+// Entry point adapted from the design export (renamed to .jsx)
 import { useState, useMemo } from 'react';
 import { Activity, DollarSign, Package, FileText, Clock } from 'lucide-react';
 
@@ -37,7 +37,7 @@ function groupByDate(items) {
   return Array.from(map.entries());
 }
 
-export default function App() {
+export default function MainDashboard() {
   const [searchValue, setSearchValue] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [selectedProductName, setSelectedProductName] = useState(null);

@@ -1,4 +1,4 @@
-// copied from figma export
+// copied from design export
 const IMAGES = {
   headphones: 'https://images.unsplash.com/photo-1612858249937-1cc0852093dd?w=400&h=400&fit=crop',
   tshirt: 'https://images.unsplash.com/photo-1759572095329-1dcf9522762b?w=400&h=400&fit=crop',
