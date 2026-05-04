@@ -22,11 +22,11 @@ export function TopNav() {
   ]);
   const unreadCount = notifications.filter((n) => n.unread).length;
 
-const navItems = [
-  { icon: BarChart2, label: 'Dashboard', href: '/dashboard' },
-  { icon: Package, label: 'Products', href: '/products' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
-];
+  const navItems = [
+    { icon: BarChart2, label: 'Dashboard', href: '/dashboard' },
+    { icon: Package, label: 'Products', href: '/products' },
+    { icon: Settings, label: 'Settings', href: '/settings' },
+  ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-[#1a1a2e] border-b border-white/10 flex items-center px-4 gap-3">
@@ -46,22 +46,21 @@ const navItems = [
         <ChevronDown size={12} className="text-white/40" />
       </button>
 
-    <nav className="hidden lg:flex items-center gap-0.5 ml-2">
-  {navItems.map(({ icon: Icon, label, active, href }) => (
-    <Link
-      key={label}
-      href={href}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-        active
-          ? 'bg-white/15 text-white'
-          : 'text-white/50 hover:text-white/80 hover:bg-white/8'
-      }`}
-    >
-      <Icon size={13} />
-      {label}
-    </Link>
-  ))}
-</nav>
+      <nav className="hidden lg:flex items-center gap-0.5 ml-2">
+        {navItems.map(({ icon: Icon, label, active, href }) => (
+          <Link
+            key={label}
+            href={href}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${active
+                ? 'bg-white/15 text-white'
+                : 'text-white/50 hover:text-white/80 hover:bg-white/8'
+              }`}
+          >
+            <Icon size={13} />
+            {label}
+          </Link>
+        ))}
+      </nav>
 
       <div className="flex-1" />
 
@@ -113,9 +112,8 @@ const navItems = [
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
-                      n.unread ? 'bg-blue-50/40' : ''
-                    }`}
+                    className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${n.unread ? 'bg-blue-50/40' : ''
+                      }`}
                   >
                     <div className="flex items-start gap-2">
                       {n.unread && (
