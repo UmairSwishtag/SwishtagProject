@@ -28,17 +28,19 @@ Route::group(['middleware' => ['verify.embedded', 'verify.shopify']], function (
     Route::get('/', function () {
         return null;
     })->name('home');
-
 });
 
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('maindashboard');
     // Support legacy path '/maindashboard' by redirecting to the actual dashboard route
-    Route::get('/maindashboard', function () {return redirect('/dashboard');});
-    Route::get('/products', function () {return Inertia::render('Products');})->name('products');
+    Route::get('/maindashboard', function () {
+        return redirect('/dashboard');
+    });
+    Route::get('/products', function () {
+        return Inertia::render('Products');
+    })->name('products');
     Route::get('/search', [DashboardController::class, 'orderSeacrhfilter'])->name('search');
-
 });
 
 require __DIR__ . '/auth.php';
