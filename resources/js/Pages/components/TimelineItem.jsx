@@ -3,10 +3,41 @@ import { User, Bot, Zap, ArrowRight } from 'lucide-react';
 
 function formatTime(isoString) {
   const date = new Date(isoString);
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 function SourceTag({ source, userName }) {
+  if (source === 'sync' || source === 'manual') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+        <User size={11} className="text-amber-500" />
+        Manual
+      </span>
+    );
+  }
+  if (source === 'webhook' || source === 'shopify') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+        <Bot size={11} className="text-blue-500" />
+        Auto
+      </span>
+    );
+  }
   if (source === 'user' && userName) {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-gray-500">

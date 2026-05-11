@@ -31,4 +31,13 @@ class Product extends Model
     {
         return $this->hasMany(ProductMedia::class);
     }
+    public function versions()
+    {
+        return $this->hasMany(\App\Models\ProductVersion::class);
+    }
+
+    public function collections()
+    {
+        return $this->belongsToMany(Collection::class, 'collection_product');
+    }
 }

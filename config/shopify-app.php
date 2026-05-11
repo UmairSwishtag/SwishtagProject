@@ -352,23 +352,28 @@ return [
     |
     */
 
-    'listen' => [
-        \Osiset\ShopifyApp\Messaging\Events\AppInstalledEvent::class => [
-            // \App\Listeners\MyListener::class,
-        ],
-        \Osiset\ShopifyApp\Messaging\Events\ShopAuthenticatedEvent::class => [
-            // \App\Listeners\MyListener::class,
-        ],
-        \Osiset\ShopifyApp\Messaging\Events\ShopDeletedEvent::class => [
-            // \App\Listeners\MyListener::class,
-        ],
-        \Osiset\ShopifyApp\Messaging\Events\AppUninstalledEvent::class => [
-            // \App\Listeners\MyListener::class,
-        ],
-        \Osiset\ShopifyApp\Messaging\Events\PlanActivatedEvent::class => [
-            // \App\Listeners\MyListener::class,
-        ],
+   'listen' => [
+
+    \Osiset\ShopifyApp\Messaging\Events\AppInstalledEvent::class => [
+        // \App\Listeners\MyListener::class,
     ],
+
+    \Osiset\ShopifyApp\Messaging\Events\ShopAuthenticatedEvent::class => [
+        \App\Listeners\RegisterShopifyWebhooks::class,
+    ],
+
+    \Osiset\ShopifyApp\Messaging\Events\ShopDeletedEvent::class => [
+        // \App\Listeners\MyListener::class,
+    ],
+
+    \Osiset\ShopifyApp\Messaging\Events\AppUninstalledEvent::class => [
+        // \App\Listeners\MyListener::class,
+    ],
+
+    \Osiset\ShopifyApp\Messaging\Events\PlanActivatedEvent::class => [
+        // \App\Listeners\MyListener::class,
+    ],
+],
 
     /*
     |--------------------------------------------------------------------------

@@ -1,43 +1,50 @@
 <?php
 
 use Inertia\Inertia;
-use Osiset\ShopifyApp\Util;
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Webhook\ProductWebhookController;
+use App\Http\Controllers\Shopify\ProductSyncController;
 
+/*
+|--------------------------------------------------------------------------
+| Shopify Embedded Protected Routes
+|--------------------------------------------------------------------------
+*/
+Route::group(['middleware' => ['verify.shopify']], function () {
 
+    Route::get('/sync-products', [ProductSyncController::class, 'sync']);
 
-// if (!config('shopify-app.appbridge_enabled')) {
-//     Route::match(
-//         ['GET', 'POST'],
-//         '/authenticate',
-//         AuthenticatedSessionController::class . '@authenticate'
-//     )
-//         ->name('authenticate');
-//     Route::get(
-//         '/authenticate/token',
-//         AuthenticatedSessionController::class . '@authenticate'
-//     )
-//         ->middleware(['verify.shopify'])
-//         ->name(Util::getShopifyConfig('route_names.authenticate.token'));
-// }
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-Route::group(['middleware' => [ 'verify.shopify']], function () {
-
-    // Route::get('/', function () {
-    //     return null;
-    // })->name('home'); 
-
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('home');
-    // Support legacy path '/maindashboard' by redirecting to the actual dashboard route
-    // Route::get('/maindashboard', function () {
-    //     return redirect('/dashboard');
-    // });
     Route::get('/products', function () {
-        return Inertia::render('Products');
+        return Inertia::render('SettingsPage');
     })->name('products');
+
     Route::get('/search', [DashboardController::class, 'orderSeacrhfilter'])->name('search');
 });
 
+// Webhook ingress must not use verify.shopify because Shopify sends signed webhook requests
+Route::post('/webhook/products/{action}', [ProductWebhookController::class, 'handle'])
+    ->middleware('auth.webhook')
+    ->whereIn('action', ['create', 'update', 'delete']);
+
+
+/*
+|--------------------------------------------------------------------------
+| Manual sync (admin trigger)
+|--------------------------------------------------------------------------
+| IMPORTANT: this should NOT be inside Shopify middleware
+| because shop is already authenticated via package session
+*/
+
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Auth routes
+|--------------------------------------------------------------------------
+*/
 require __DIR__ . '/auth.php';

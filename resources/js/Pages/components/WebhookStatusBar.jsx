@@ -1,27 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Clock, Zap, X, Wifi } from 'lucide-react';
 
-const SAMPLE_EVENTS = [
-  { id: 1, label: 'products/update — Premium Headphones', time: '2m ago' },
-  { id: 2, label: 'inventory_levels/update — T-Shirt', time: '8m ago' },
-  { id: 3, label: 'products/update — Smart Watch', time: '14m ago' },
-];
+function formatRelative(isoString) {
+  if (!isoString) return '';
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(isoString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
-export function WebhookStatusBar() {
+export function WebhookStatusBar({ recentChanges = [] }) {
   const [connectionStatus] = useState('connected');
-  const [lastUpdateText, setLastUpdateText] = useState('2 minutes ago');
   const [dismissed, setDismissed] = useState(false);
-  const [eventCount, setEventCount] = useState(18);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setEventCount((c) => c + 1);
-      setLastUpdateText('Just now');
-      setTimeout(() => setLastUpdateText('1 minute ago'), 60_000);
-    }, 45_000);
-    return () => clearInterval(timer);
-  }, []);
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const eventCount = useMemo(
+    () => recentChanges.filter((c) => c.createdAt?.startsWith(todayStr)).length,
+    [recentChanges, todayStr]
+  );
+
+  const lastUpdateText = useMemo(() => {
+    if (recentChanges.length === 0) return 'No updates yet';
+    return formatRelative(recentChanges[0].createdAt);
+  }, [recentChanges]);
+
+  const recentEvents = useMemo(
+    () =>
+      recentChanges.slice(0, 3).map((c) => ({
+        id:    c.id,
+        label: `${c.changeType} — ${c.productName}`,
+        time:  formatRelative(c.createdAt),
+      })),
+    [recentChanges]
+  );
 
   if (dismissed) return null;
 
@@ -67,7 +83,7 @@ export function WebhookStatusBar() {
               <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">{eventCount} today</span>
             </div>
             <div className="divide-y divide-gray-50">
-              {SAMPLE_EVENTS.map((evt) => (
+              {recentEvents.length > 0 ? recentEvents.map((evt) => (
                 <div key={evt.id} className="flex items-center gap-2 px-3 py-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -75,7 +91,9 @@ export function WebhookStatusBar() {
                   </div>
                   <span className="text-xs text-gray-400 flex-shrink-0">{evt.time}</span>
                 </div>
-              ))}
+              )) : (
+                <div className="px-3 py-3 text-xs text-gray-400">No recent events</div>
+              )}
             </div>
             <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
               <p className="text-xs text-gray-400">Powered by Shopify webhooks API</p>

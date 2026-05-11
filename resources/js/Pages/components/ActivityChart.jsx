@@ -7,7 +7,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { activityChartData } from '../data/mockData';
 import { BarChart2 } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -31,8 +30,8 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-export function ActivityChart() {
-  const total = activityChartData.reduce(
+export function ActivityChart({ data = [] }) {
+  const total = data.reduce(
     (acc, d) => acc + d.price + d.inventory + d.content,
     0
   );
@@ -54,7 +53,7 @@ export function ActivityChart() {
       <div className="h-36">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
-            data={activityChartData}
+            data={data}
             margin={{ top: 0, right: 0, left: -24, bottom: 0 }}
             barSize={8}
             barGap={2}

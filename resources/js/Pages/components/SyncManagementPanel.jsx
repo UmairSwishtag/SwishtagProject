@@ -1,80 +1,90 @@
 import { useState, useEffect, useRef } from 'react';
 import { RefreshCw, CheckCircle2, AlertTriangle, Package, Clock, ChevronDown, RotateCcw } from 'lucide-react';
 
-const INITIAL_LOGS = [
-  { id: 1, message: 'Sync completed — 247 products updated', time: '5m ago', type: 'success' },
-  { id: 2, message: 'Webhook received: price update', time: '12m ago', type: 'info' },
-  { id: 3, message: 'Sync completed — 244 products updated', time: '1h ago', type: 'success' },
-];
-
 export function SyncManagementPanel() {
-  const [status, setStatus] = useState('success');
-  const [progress, setProgress] = useState(0);
-  const [lastSyncedText, setLastSyncedText] = useState('5 minutes ago');
-  const [totalProducts, setTotalProducts] = useState(247);
-  const [logs, setLogs] = useState(INITIAL_LOGS);
+  const [status, setStatus] = useState('idle');
+  const [lastSyncedText, setLastSyncedText] = useState(() => localStorage.getItem('syncLastText') || 'Never');
+  const [totalProducts, setTotalProducts] = useState(() => Number(localStorage.getItem('syncTotalProducts') || 0));
+  const [errorMessage, setErrorMessage] = useState('');
+  const [logs, setLogs] = useState([]);
   const [showLogs, setShowLogs] = useState(false);
-  const [attemptCount, setAttemptCount] = useState(0);
-  const intervalRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const progressIntervalRef = useRef(null);
+  const [progress, setProgress] = useState(0);
+  const shopParam = new URLSearchParams(window.location.search).get('shop');
 
   const cleanup = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
   };
 
-  const handleSync = () => {
+  const handleSync = async () => {
+    if (status === 'syncing') return;
+
     cleanup();
     setStatus('syncing');
     setProgress(0);
-    setAttemptCount((c) => c + 1);
+    setErrorMessage('');
 
     let current = 0;
-    intervalRef.current = setInterval(() => {
-      current += Math.random() * 10 + 4;
-      if (current >= 92) {
-        current = 92;
-        if (intervalRef.current) clearInterval(intervalRef.current);
+    progressIntervalRef.current = setInterval(() => {
+      current += Math.random() * 8 + 3;
+      if (current >= 80) {
+        current = 80;
+        cleanup();
       }
-      setProgress(Math.min(current, 92));
-    }, 120);
+      setProgress(Math.min(current, 80));
+    }, 200);
 
-    const willFail = (attemptCount + 1) % 4 === 0;
-
-    timeoutRef.current = setTimeout(() => {
+    try {
+      const endpoint = shopParam
+        ? `/sync-products?shop=${encodeURIComponent(shopParam)}`
+        : '/sync-products';
+      const res = await fetch(endpoint, { credentials: 'include' });
       cleanup();
-      if (willFail) {
-        setProgress(0);
-        setStatus('failed');
-        setLogs((prev) => [
-          {
-            id: Date.now(),
-            message: 'Sync failed — connection timeout',
-            time: 'Just now',
-            type: 'error',
-          },
-          ...prev.slice(0, 4),
-        ]);
-      } else {
-        setProgress(100);
-        const added = Math.floor(Math.random() * 5) + 1;
-        setStatus('success');
-        setLastSyncedText('Just now');
-        setTotalProducts((p) => {
-          const newTotal = p + added;
-          setLogs((prev) => [
-            {
-              id: Date.now(),
-              message: `Sync completed — ${newTotal} products updated`,
-              time: 'Just now',
-              type: 'success',
-            },
-            ...prev.slice(0, 4),
-          ]);
-          return newTotal;
-        });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
       }
-    }, 3600);
+
+      const data = await res.json();
+      const synced = data.products_synced ?? 0;
+
+      setProgress(100);
+      setStatus('success');
+      setTotalProducts(synced);
+      setLastSyncedText('Just now');
+      localStorage.setItem('syncTotalProducts', String(synced));
+      localStorage.setItem('syncLastText', new Date().toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+      }));
+
+      setLogs((prev) => [
+        {
+          id: Date.now(),
+          message: `Sync completed - ${synced} products updated`,
+          time: 'Just now',
+          type: 'success',
+        },
+        ...prev.slice(0, 9),
+      ]);
+    } catch (err) {
+      cleanup();
+      setProgress(0);
+      setStatus('failed');
+      setErrorMessage(err.message || 'Connection failed');
+      setLogs((prev) => [
+        {
+          id: Date.now(),
+          message: `Sync failed - ${err.message || 'connection error'}`,
+          time: 'Just now',
+          type: 'error',
+        },
+        ...prev.slice(0, 9),
+      ]);
+    }
   };
 
   useEffect(() => {
@@ -92,7 +102,7 @@ export function SyncManagementPanel() {
     },
     syncing: {
       icon: RefreshCw,
-      label: 'Syncing…',
+      label: 'Syncing...',
       ringColor: 'ring-blue-200',
       iconColor: 'text-blue-500',
       bgColor: 'bg-blue-50',
@@ -128,7 +138,7 @@ export function SyncManagementPanel() {
           </div>
           <div>
             <h3 className="text-sm text-gray-900">Product Sync</h3>
-            <p className="text-xs text-gray-400">Shopify GraphQL</p>
+            <p className="text-xs text-gray-400">Shopify GraphQL API</p>
           </div>
         </div>
 
@@ -154,10 +164,10 @@ export function SyncManagementPanel() {
           </div>
           <span className="text-xs text-gray-700">{lastSyncedText}</span>
           {status === 'success' && (
-            <span className="text-xs text-emerald-600 mt-0.5">✓ Successful</span>
+            <span className="text-xs text-emerald-600 mt-0.5">Successful</span>
           )}
           {status === 'failed' && (
-            <span className="text-xs text-red-500 mt-0.5">✗ Failed</span>
+            <span className="text-xs text-red-500 mt-0.5">Failed</span>
           )}
         </div>
       </div>
@@ -165,13 +175,13 @@ export function SyncManagementPanel() {
       {status === 'syncing' && (
         <div className="px-4 pt-3">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-blue-600">Syncing products…</span>
+            <span className="text-xs text-blue-600">Syncing products and collections...</span>
             <span className="text-xs text-blue-500 tabular-nums">{Math.round(progress)}%</span>
           </div>
           <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-150" style={{ width: `${progress}%` }} />
           </div>
-          <p className="text-xs text-gray-400 mt-1.5">Fetching from Shopify GraphQL API…</p>
+          <p className="text-xs text-gray-400 mt-1.5">Fetching from Shopify Admin API...</p>
         </div>
       )}
 
@@ -180,8 +190,13 @@ export function SyncManagementPanel() {
           <div className="flex items-start gap-2">
             <AlertTriangle size={13} className="text-red-500 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-xs text-red-700">Connection to Shopify timed out.</p>
-              <p className="text-xs text-red-400 mt-0.5">Check your API credentials and try again.</p>
+              <p className="text-xs text-red-700">{errorMessage || 'Connection to Shopify failed.'}</p>
+              {errorMessage && errorMessage.toLowerCase().includes('reinstall') && (
+                <p className="text-xs text-red-500 mt-0.5 font-medium">Action required: Reinstall the app to re-authorize.</p>
+              )}
+              {(!errorMessage || !errorMessage.toLowerCase().includes('reinstall')) && (
+                <p className="text-xs text-red-400 mt-0.5">Check your API credentials and try again.</p>
+              )}
             </div>
           </div>
         </div>
@@ -202,7 +217,7 @@ export function SyncManagementPanel() {
           {status === 'syncing' ? (
             <>
               <RefreshCw size={14} className="animate-spin" />
-              Syncing…
+              Syncing...
             </>
           ) : status === 'failed' ? (
             <>
@@ -212,7 +227,7 @@ export function SyncManagementPanel() {
           ) : (
             <>
               <RefreshCw size={14} />
-              Sync Products
+              Sync Products and Collections
             </>
           )}
         </button>
@@ -229,15 +244,19 @@ export function SyncManagementPanel() {
 
         {showLogs && (
           <div className="px-4 pb-3 space-y-2">
-            {logs.map((log) => (
-              <div key={log.id} className="flex items-start gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${log.type === 'success' ? 'bg-emerald-500' : log.type === 'error' ? 'bg-red-500' : 'bg-blue-400'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-600 leading-snug">{log.message}</p>
-                  <p className="text-xs text-gray-400">{log.time}</p>
+            {logs.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">No sync activity yet.</p>
+            ) : (
+              logs.map((log) => (
+                <div key={log.id} className="flex items-start gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${log.type === 'success' ? 'bg-emerald-500' : log.type === 'error' ? 'bg-red-500' : 'bg-blue-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-600 leading-snug">{log.message}</p>
+                    <p className="text-xs text-gray-400">{log.time}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
       </div>

@@ -15,7 +15,7 @@ import { ActivityChart } from './components/ActivityChart';
 import { SyncManagementPanel } from './components/SyncManagementPanel';
 import { WebhookStatusBar } from './components/WebhookStatusBar';
 
-import { mockChanges, productDetails, sparklineData } from './data/mockData';
+import { mockChanges, productDetails, sparklineData } from './data/MockData';
 
 const START_TODAY = new Date('2026-04-27T00:00:00');
 const START_YESTERDAY = new Date('2026-04-26T00:00:00');
