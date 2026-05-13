@@ -11,12 +11,32 @@
         <script type="text/javascript">
             document.addEventListener('DOMContentLoaded', function () {
                 let redirectUrl = "{!! $url !!}";
+                const apiKey = document.querySelector('meta[name="shopify-api-key"]')?.content;
+                const host = new URLSearchParams(window.location.search).get('host');
 
-                if (window.top === window.self) {
-                    window.top.location.href = redirectUrl;
-                } else {
-                    open(redirectUrl, '_top');
+                const fallbackRedirect = () => {
+                    if (window.top === window.self) {
+                        window.location.assign(redirectUrl);
+                    } else {
+                        window.open(redirectUrl, '_top');
+                    }
+                };
+
+                try {
+                    const AppBridge = window['app-bridge'];
+                    const createApp = AppBridge?.default || AppBridge?.createApp;
+                    const Redirect = AppBridge?.actions?.Redirect;
+
+                    if (createApp && Redirect && host && apiKey) {
+                        const app = createApp({ apiKey, host, forceRedirect: true });
+                        Redirect.create(app).dispatch(Redirect.Action.REMOTE, redirectUrl);
+                        return;
+                    }
+                } catch (e) {
+                    // Fallback below handles navigation.
                 }
+
+                fallbackRedirect();
             });
         </script>
     </head>

@@ -63,7 +63,11 @@ Route::middleware(['verify.shopify'])->get('/product-changes', function () {
         $oldValue = $version->old_value;
         $newValue = $version->new_value;
 
-        if ($changeType === 'price') {
+        // For 'created' events, format a user-friendly label
+        if ($version->changed_field === 'created') {
+            $oldValue = null;
+            $newValue = 'Product added to catalog';
+        } elseif ($changeType === 'price') {
             $oldValue = $oldValue !== null ? '$' . number_format((float) $oldValue, 2) : null;
             $newValue = $newValue !== null ? '$' . number_format((float) $newValue, 2) : null;
         } elseif ($changeType === 'inventory') {

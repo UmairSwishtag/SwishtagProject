@@ -1,6 +1,6 @@
 // Entry point adapted from the design export (renamed to .jsx)
-import { useState, useMemo } from 'react';
-import { Activity, DollarSign, Package, FileText, Clock } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Activity, DollarSign, Package, FileText, Clock, AlertTriangle } from 'lucide-react';
 
 import { TopNav } from './components/TopNav';
 import { DashboardHeader } from './components/DashboardHeader';
@@ -15,15 +15,17 @@ import { ActivityChart } from './components/ActivityChart';
 import { SyncManagementPanel } from './components/SyncManagementPanel';
 import { WebhookStatusBar } from './components/WebhookStatusBar';
 
-import { mockChanges, productDetails, sparklineData } from './data/MockData';
-
-const START_TODAY = new Date('2026-04-27T00:00:00');
-const START_YESTERDAY = new Date('2026-04-26T00:00:00');
+import { mockChanges, productDetails } from './data/MockData';
 
 function getDateLabel(isoString) {
   const d = new Date(isoString);
-  if (d >= START_TODAY) return 'Today';
-  if (d >= START_YESTERDAY) return 'Yesterday';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (itemDay >= today) return 'Today';
+  if (itemDay >= yesterday) return 'Yesterday';
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
@@ -41,12 +43,32 @@ export default function Products() {
   const [searchValue, setSearchValue] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [selectedProductName, setSelectedProductName] = useState(null);
-  const [isLoading] = useState(false);
+  const [changes, setChanges] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+  const shopParam = new URLSearchParams(window.location.search).get('shop');
 
+  const dataSource = fetchError ? mockChanges : changes;
   const sortedChanges = useMemo(
-    () => [...mockChanges].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-    []
+    () => [...dataSource].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+    [dataSource]
   );
+
+  const fetchChanges = () => {
+    const endpoint = shopParam
+      ? `/api/product-changes?shop=${encodeURIComponent(shopParam)}`
+      : '/api/product-changes';
+    fetch(endpoint, { credentials: 'include' })
+      .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then((data) => { setChanges(Array.isArray(data) ? data : []); setFetchError(null); setIsLoading(false); })
+      .catch((err) => { setFetchError(err.message); setIsLoading(false); });
+  };
+
+  useEffect(() => {
+    fetchChanges();
+    const interval = setInterval(fetchChanges, 30_000);
+    return () => clearInterval(interval);
+  }, [shopParam]);
 
   const filteredChanges = useMemo(() => {
     return sortedChanges.filter((change) => {
@@ -68,6 +90,38 @@ export default function Products() {
     }),
     [sortedChanges]
   );
+
+  const activityChartData = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (6 - i));
+      const dayStr = d.toISOString().split('T')[0];
+      const dayLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const dayChanges = sortedChanges.filter((c) => c.createdAt?.startsWith(dayStr));
+      return {
+        day: dayLabel,
+        price: dayChanges.filter((c) => c.changeType === 'price').length,
+        inventory: dayChanges.filter((c) => c.changeType === 'inventory').length,
+        content: dayChanges.filter((c) => c.changeType === 'content').length,
+      };
+    });
+  }, [sortedChanges]);
+
+  const sparklineData = useMemo(() => {
+    const now = new Date();
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now); d.setDate(d.getDate() - (6 - i));
+      return d.toISOString().split('T')[0];
+    });
+    const makeSeries = (subset) => days.map((day) => ({ v: subset.filter((c) => c.createdAt?.startsWith(day)).length }));
+    return {
+      total: makeSeries(sortedChanges),
+      price: makeSeries(sortedChanges.filter((c) => c.changeType === 'price')),
+      inventory: makeSeries(sortedChanges.filter((c) => c.changeType === 'inventory')),
+      content: makeSeries(sortedChanges.filter((c) => c.changeType === 'content')),
+    };
+  }, [sortedChanges]);
 
   const dateGroups = useMemo(() => groupByDate(filteredChanges), [filteredChanges]);
 
@@ -126,7 +180,14 @@ export default function Products() {
 
         <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-5">
 
-          <WebhookStatusBar />
+          <WebhookStatusBar recentChanges={sortedChanges.slice(0, 5)} />
+
+          {fetchError && (
+            <div className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+              <AlertTriangle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">Could not reach the API ({fetchError}). Showing cached data.</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {isLoading ? (
@@ -140,9 +201,9 @@ export default function Products() {
               <>
                 <SummaryCard
                   title="Total Changes"
-                  count={124}
+                  count={counts.all}
                   icon={Activity}
-                  trend={{ direction: 'up', value: '+12%' }}
+                  trend={null}
                   iconColor="text-slate-600"
                   iconBgColor="bg-slate-100"
                   accentColor="#64748b"
@@ -150,9 +211,9 @@ export default function Products() {
                 />
                 <SummaryCard
                   title="Price Updates"
-                  count={48}
+                  count={counts.price}
                   icon={DollarSign}
-                  trend={{ direction: 'up', value: '+8%' }}
+                  trend={null}
                   iconColor="text-emerald-600"
                   iconBgColor="bg-emerald-50"
                   accentColor="#10b981"
@@ -160,9 +221,9 @@ export default function Products() {
                 />
                 <SummaryCard
                   title="Inventory Changes"
-                  count={52}
+                  count={counts.inventory}
                   icon={Package}
-                  trend={{ direction: 'down', value: '-3%' }}
+                  trend={null}
                   iconColor="text-blue-600"
                   iconBgColor="bg-blue-50"
                   accentColor="#3b82f6"
@@ -170,9 +231,9 @@ export default function Products() {
                 />
                 <SummaryCard
                   title="Content Edits"
-                  count={24}
+                  count={counts.content}
                   icon={FileText}
-                  trend={{ direction: 'up', value: '+5%' }}
+                  trend={null}
                   iconColor="text-purple-600"
                   iconBgColor="bg-purple-50"
                   accentColor="#8b5cf6"
@@ -244,9 +305,9 @@ export default function Products() {
             </div>
 
             <div className="w-72 flex-shrink-0 space-y-4">
-              <SyncManagementPanel />
-              <StorefrontWidget />
-              <ActivityChart />
+              <SyncManagementPanel onSyncComplete={fetchChanges} />
+              <StorefrontWidget recentChanges={sortedChanges.slice(0, 5)} />
+              <ActivityChart data={activityChartData} />
 
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <h3 className="text-sm text-gray-900 mb-3">Change Breakdown</h3>
@@ -285,9 +346,8 @@ export default function Products() {
                 <h3 className="text-sm text-gray-900 mb-3">Change Sources</h3>
                 <div className="space-y-2">
                   {[
-                    { label: 'Manual (User)', count: sortedChanges.filter((c) => c.source === 'user').length, icon: '👤', tag: 'Manual', tagColor: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    { label: 'Auto (System)', count: sortedChanges.filter((c) => c.source === 'system').length, icon: '🤖', tag: 'Auto', tagColor: 'bg-blue-50 text-blue-700 border-blue-200' },
-                    { label: 'API', count: sortedChanges.filter((c) => c.source === 'api').length, icon: '⚡', tag: 'API', tagColor: 'bg-purple-50 text-purple-700 border-purple-200' },
+                    { label: 'Webhook (Auto)', count: sortedChanges.filter((c) => c.source === 'webhook').length, icon: '⚡', tag: 'Webhook', tagColor: 'bg-purple-50 text-purple-700 border-purple-200' },
+                    { label: 'Manual Sync', count: sortedChanges.filter((c) => c.source === 'sync').length, icon: '🔄', tag: 'Sync', tagColor: 'bg-blue-50 text-blue-700 border-blue-200' },
                   ].map(({ label, count, icon, tag, tagColor }) => (
                     <div key={label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-2">

@@ -40,6 +40,10 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        $exceptions->dontReport([
+            \Osiset\ShopifyApp\Exceptions\MissingShopDomainException::class,
+        ]);
+
         // Return JSON for MissingShopDomainException (happens on direct browser visits to protected routes)
         $exceptions->render(function (\Osiset\ShopifyApp\Exceptions\MissingShopDomainException $e, $request) {
             return response()->json([

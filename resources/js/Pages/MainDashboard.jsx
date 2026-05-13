@@ -17,13 +17,15 @@ import { WebhookStatusBar } from './components/WebhookStatusBar';
 
 import { mockChanges, productDetails } from './data/MockData';
 
-const START_TODAY = new Date('2026-04-27T00:00:00');
-const START_YESTERDAY = new Date('2026-04-26T00:00:00');
-
 function getDateLabel(isoString) {
   const d = new Date(isoString);
-  if (d >= START_TODAY) return 'Today';
-  if (d >= START_YESTERDAY) return 'Yesterday';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (itemDay >= today) return 'Today';
+  if (itemDay >= yesterday) return 'Yesterday';
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
@@ -333,8 +335,8 @@ export default function MainDashboard() {
             </div>
 
             <div className="w-72 flex-shrink-0 space-y-4">
-              <SyncManagementPanel />
-              <StorefrontWidget />
+              <SyncManagementPanel onSyncComplete={fetchChanges} />
+              <StorefrontWidget recentChanges={sortedChanges.slice(0, 5)} />
               <ActivityChart data={activityChartData} />
 
               <div className="bg-white rounded-xl border border-gray-200 p-4">

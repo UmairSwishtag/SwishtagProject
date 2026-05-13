@@ -56,7 +56,18 @@ class ProductsUpdateJob implements ShouldQueue
     {
         $this->shopDomain = ShopDomain::fromNative($this->shopDomain);
         $shop = $shopQuery->getByDomain($this->shopDomain);
-        $user = User::where('name', $shop->name)->first();
+        $domain = $this->shopDomain->toNative();
+        if (!$shop) {
+            $this->logInfo('Product update skipped: shop not found for domain ' . $domain);
+            return;
+        }
+
+        $user = User::where('name', $domain)->first();
+        if (!$user) {
+            $this->logInfo('Product update skipped: user not found for shop ' . $domain);
+            return;
+        }
+
         $payload = $this->data;
         $this->getProductRepository(app(ProductRepositoryInterface::class));
 

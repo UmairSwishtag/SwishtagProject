@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { RefreshCw, CheckCircle2, AlertTriangle, Package, Clock, ChevronDown, RotateCcw } from 'lucide-react';
 
-export function SyncManagementPanel() {
+export function SyncManagementPanel({ onSyncComplete }) {
   const [status, setStatus] = useState('idle');
   const [lastSyncedText, setLastSyncedText] = useState(() => localStorage.getItem('syncLastText') || 'Never');
   const [totalProducts, setTotalProducts] = useState(() => Number(localStorage.getItem('syncTotalProducts') || 0));
@@ -46,6 +46,10 @@ export function SyncManagementPanel() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        if (res.status === 401 && body?.reauth_url) {
+          window.location.assign(body.reauth_url);
+          return;
+        }
         throw new Error(body.error || `HTTP ${res.status}`);
       }
 
@@ -70,6 +74,11 @@ export function SyncManagementPanel() {
         },
         ...prev.slice(0, 9),
       ]);
+
+      // Notify parent to refresh dashboard data
+      if (typeof onSyncComplete === 'function') {
+        onSyncComplete();
+      }
     } catch (err) {
       cleanup();
       setProgress(0);

@@ -17,6 +17,25 @@ class ProductSyncController extends Controller
 {
     private string $apiVersion = '2025-04';
 
+    protected function isInvalidTokenResponse(array $response): bool
+    {
+        $status = (int) ($response['status'] ?? 0);
+        if ($status === 401) {
+            return true;
+        }
+
+        $bodyErrors = $response['body']['errors'] ?? null;
+        $graphErrors = $response['body']['errors']['graphQLErrors'] ?? null;
+        $raw = $response['errors'] ?? $bodyErrors ?? $graphErrors;
+        $errorMsg = is_string($raw) ? $raw : json_encode($raw);
+        $errorMsg = strtolower((string) $errorMsg);
+
+        return str_contains($errorMsg, 'invalid api key')
+            || str_contains($errorMsg, 'access token')
+            || str_contains($errorMsg, 'unrecognized login')
+            || str_contains($errorMsg, 'wrong password');
+    }
+
     public function sync(Request $request)
     {
         $shop = $request->user();
@@ -101,10 +120,14 @@ class ProductSyncController extends Controller
                     $errorMsg = is_string($raw) ? $raw : json_encode($raw);
                 }
 
-                $status = $response['status'] ?? 200;
+                $status = (int) ($response['status'] ?? 200);
 
-                if ($status === 401 || str_contains($errorMsg, 'Invalid API key') || str_contains($errorMsg, 'access token')) {
-                    $reauthUrl = route('authenticate', ['shop' => $shop->name]);
+                if ($this->isInvalidTokenResponse($response)) {
+                    $reauthParams = ['shop' => $shop->name];
+                    if ($request->filled('host')) {
+                        $reauthParams['host'] = (string) $request->query('host');
+                    }
+                    $reauthUrl = route('authenticate', $reauthParams);
                     return response()->json([
                         'error' => 'Shopify API: Invalid or expired access token. Please reinstall the app to re-authorize.',
                         'reauth_url' => $reauthUrl,
@@ -126,7 +149,11 @@ class ProductSyncController extends Controller
                 ], 500);
             }
 
-            $productsData = $response['body']['data']['products'] ?? null;
+            // Convert ResponseAccess to a plain PHP array so array operations work correctly.
+            // Casting ResponseAccess to (array) gives ['container'=>..., 'position'=>0] not the data.
+            $body = json_decode(json_encode($response['body']), true);
+            $productsData = $body['data']['products'] ?? null;
+
             if (!$productsData) {
                 break;
             }
@@ -136,14 +163,30 @@ class ProductSyncController extends Controller
             $edges = $productsData['edges'] ?? [];
 
             foreach ($edges as $edge) {
-                $this->syncProduct($edge['node'], $shop->id);
-            }
+                $node = $edge['node'] ?? [];
+                if (empty($node['id'])) {
+                    continue;
+                }
 
-            $synced += count($edges);
+                try {
+                    $product = $this->syncProduct($node, $shop->id);
+                    if ($product) {
+                        $synced++;
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('syncProduct failed', [
+                        'node_id' => $node['id'] ?? 'unknown',
+                        'error'   => $e->getMessage(),
+                        'trace'   => $e->getTraceAsString(),
+                    ]);
+                }
+            }
         }
 
         // Sync collections via GraphQL
         $this->syncCollections($shop);
+
+        \Illuminate\Support\Facades\Log::info('Sync complete', ['products_synced' => $synced]);
 
         return response()->json([
             'success' => true,
@@ -151,9 +194,17 @@ class ProductSyncController extends Controller
         ]);
     }
 
-    protected function syncProduct(array $node, int $shopId): Product
+    protected function syncProduct(array $node, int $shopId): ?Product
     {
         return DB::transaction(function () use ($node, $shopId) {
+            if (empty($node['id'])) {
+                \Illuminate\Support\Facades\Log::warning('Skipping product sync node without id', [
+                    'shop_id' => $shopId,
+                    'node' => $node,
+                ]);
+                return null;
+            }
+
             // Convert GraphQL global ID to numeric Shopify ID
             // e.g. "gid://shopify/Product/123456" → 123456
             $shopifyProductId = $this->extractNumericId($node['id']);
@@ -161,6 +212,8 @@ class ProductSyncController extends Controller
             $existing = Product::where('shopify_product_id', $shopifyProductId)->first();
 
             $tags = is_array($node['tags']) ? implode(',', $node['tags']) : ($node['tags'] ?? '');
+            // Truncate to fit varchar(255) column
+            $tags = substr($tags, 0, 255);
 
             $product = Product::updateOrCreate(
                 ['shopify_product_id' => $shopifyProductId],
@@ -184,11 +237,25 @@ class ProductSyncController extends Controller
                     'vendor' => $node['vendor'] ?? null,
                     'product_type' => $node['productType'] ?? null,
                 ]);
+            } elseif ($product->wasRecentlyCreated) {
+                // Record the initial sync as a 'created' event so the dashboard has data to show
+                ProductVersion::create([
+                    'product_id'    => $product->id,
+                    'changed_field' => 'created',
+                    'old_value'     => null,
+                    'new_value'     => $node['title'] ?? null,
+                    'source'        => 'sync',
+                    'changed_at'    => now(),
+                ]);
             }
 
             $variantIds = [];
             foreach ($node['variants']['edges'] ?? [] as $variantEdge) {
                 $variant = $variantEdge['node'];
+                if (empty($variant['id'])) {
+                    continue;
+                }
+
                 $shopifyVariantId = $this->extractNumericId($variant['id']);
                 $shopifyInventoryItemId = isset($variant['inventoryItem']['id'])
                     ? $this->extractNumericId($variant['inventoryItem']['id'])
@@ -250,6 +317,10 @@ class ProductSyncController extends Controller
             $mediaIds = [];
             foreach ($node['images']['edges'] ?? [] as $imageEdge) {
                 $image = $imageEdge['node'];
+                if (empty($image['id'])) {
+                    continue;
+                }
+
                 $shopifyImageId = $this->extractNumericId($image['id']);
 
                 $imageRecord = ProductMedia::updateOrCreate(
@@ -330,6 +401,13 @@ class ProductSyncController extends Controller
             $response = $shop->api()->graph($query);
 
             if (!empty($response['errors'])) {
+                if ($this->isInvalidTokenResponse($response)) {
+                    \Illuminate\Support\Facades\Log::warning('Collections sync skipped due to invalid Shopify token', [
+                        'shop' => $shop->name,
+                    ]);
+                    return;
+                }
+
                 // Log but continue — don't fail the whole sync if collections are inaccessible
                 \Illuminate\Support\Facades\Log::warning('Shopify collections sync error', [
                     'errors' => $response['errors'] === true ? $response['body'] : $response['errors'],
@@ -338,7 +416,8 @@ class ProductSyncController extends Controller
                 break;
             }
 
-            $collectionsData = $response['body']['data']['collections'] ?? null;
+            $collectionsBody = json_decode(json_encode($response['body']), true);
+            $collectionsData = $collectionsBody['data']['collections'] ?? null;
             if (!$collectionsData) {
                 break;
             }
@@ -348,6 +427,10 @@ class ProductSyncController extends Controller
 
             foreach ($collectionsData['edges'] ?? [] as $edge) {
                 $col = $edge['node'];
+                if (empty($col['id'])) {
+                    continue;
+                }
+
                 $shopifyCollectionId = $this->extractNumericId($col['id']);
 
                 // Determine collection type: if sortOrder is "MANUAL" it's custom, otherwise smart
@@ -367,6 +450,10 @@ class ProductSyncController extends Controller
                 // Sync product associations
                 $productIds = [];
                 foreach ($col['products']['edges'] ?? [] as $productEdge) {
+                    if (empty($productEdge['node']['id'])) {
+                        continue;
+                    }
+
                     $shopifyProductId = $this->extractNumericId($productEdge['node']['id']);
                     $product = Product::where('shopify_product_id', $shopifyProductId)
                         ->where('user_id', $shop->id)

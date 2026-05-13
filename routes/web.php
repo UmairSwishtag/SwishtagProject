@@ -2,8 +2,10 @@
 
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Route;
+use Osiset\ShopifyApp\Util;
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Webhook\ProductWebhookController;
 use App\Http\Controllers\Shopify\ProductSyncController;
 
@@ -29,6 +31,13 @@ Route::group(['middleware' => ['verify.shopify']], function () {
 Route::post('/webhook/products/{action}', [ProductWebhookController::class, 'handle'])
     ->middleware('auth.webhook')
     ->whereIn('action', ['create', 'update', 'delete']);
+
+Route::match(['GET', 'POST'], '/authenticate', [AuthenticatedSessionController::class, 'authenticate'])
+    ->name('authenticate');
+
+Route::get('/authenticate/token', [AuthenticatedSessionController::class, 'token'])
+    ->middleware(['verify.shopify'])
+    ->name(Util::getShopifyConfig('route_names.authenticate.token'));
 
 
 /*

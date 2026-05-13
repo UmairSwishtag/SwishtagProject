@@ -2,10 +2,10 @@
 
 namespace App\Http\Traits;
 
-use Log;
 use App\Models\User;
 use App\Http\Traits\ResponseTrait;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Repositories\Order\OrderRepositoryInterface;
 
 trait ShopifyOrderTrait
@@ -20,6 +20,10 @@ trait ShopifyOrderTrait
     {
         try {
             $orderCount = $this->getOrdersCountFromShopify($user);
+            if ($orderCount === null) {
+                throw new \Exception('Unable to fetch orders count from Shopify.');
+            }
+
             $cursor = 'null';
             $loop = ceil($orderCount / 250);
             $hasErrors = false;
@@ -58,7 +62,7 @@ trait ShopifyOrderTrait
         $result = $this->arrayToObject($user->api()->graph($query));
         Log::info("Orders Count Query Result: " . json_encode($result, JSON_PRETTY_PRINT));
         if ($result->errors) {
-            return 0;
+            return null;
         } else {
             return $result->body->data->ordersCount->count;
         }

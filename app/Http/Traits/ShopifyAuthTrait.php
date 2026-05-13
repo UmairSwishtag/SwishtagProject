@@ -12,8 +12,8 @@ use Illuminate\Contracts\View\View as ViewView;
 use Osiset\ShopifyApp\Actions\AuthenticateShop;
 use Osiset\ShopifyApp\Objects\Values\ShopDomain;
 use Osiset\ShopifyApp\Exceptions\MissingAuthUrlException;
-use Osiset\ShopifyApp\Exceptions\MissingShopDomainException;
 use Osiset\ShopifyApp\Exceptions\SignatureVerificationException;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Responsible for authenticating the shop.
@@ -23,15 +23,12 @@ trait ShopifyAuthTrait
     /**
      * Installing/authenticating a shop.
      *
-     * @throws MissingShopDomainException if both shop parameter and authenticated user are missing
-     *
-     * @return ViewView|RedirectResponse
+     * @return mixed
      */
     public function authenticate(Request $request, AuthenticateShop $authShop)
     {
         if ($request->missing('shop') && !$request->user()) {
-            // One or the other is required to authenticate a shop
-            throw new MissingShopDomainException('No authenticated user or shop domain');
+            return redirect('/')->with('error', 'Missing shop domain. Please open the app from Shopify admin.');
         }
 
         // Get the shop domain
@@ -71,7 +68,7 @@ trait ShopifyAuthTrait
             if($request->has('hmac') && $request->has('host')){
                 $user = User::find($user_id);
             }
-            auth()->loginUsingId($user_id);
+            Auth::loginUsingId($user_id);
             return redirect()->intended(RouteServiceProvider::$home);
 
         }
@@ -80,12 +77,15 @@ trait ShopifyAuthTrait
     /**
      * Get session token for a shop.
      *
-     * @return ViewView
+     * @return mixed
      */
     public function token(Request $request)
     {
-        $request->session()->reflash();
         $shopDomain = ShopDomain::fromRequest($request);
+        if (!$shopDomain) {
+            return redirect('/')->with('error', 'Missing shop domain. Please open the app from Shopify admin.');
+        }
+
         $target = $request->query('target');
         $query = parse_url($target, PHP_URL_QUERY);
 
@@ -103,7 +103,7 @@ trait ShopifyAuthTrait
             $cleanTarget = trim(explode('?', $target)[0] . '?' . http_build_query($params), '?');
         }
         $user = User::firstWhere('name', $shopDomain->toNative());
-        auth()->login($user);
+        Auth::login($user);
         return redirect()->intended(RouteServiceProvider::$home);
     }
 }

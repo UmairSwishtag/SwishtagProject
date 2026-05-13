@@ -16,11 +16,11 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'embedded';
 
-    public function __construct()
+    public function rootView(Request $request): string
     {
-        if(!request()->get('shop')) {
-            $this->rootView = 'non_embedded';
-        }
+        return (bool) config('shopify-app.appbridge_enabled', true)
+            ? 'embedded'
+            : 'non_embedded';
     }
 
     /**

@@ -30,6 +30,11 @@ class ProductSyncJob implements ShouldQueue
     {
         $this->getProductRepository(app(ProductRepositoryInterface::class));
         $user = User::find($this->userId);
+        if (!$user) {
+            $this->logInfo('Products sync skipped: user not found for ID ' . $this->userId);
+            return;
+        }
+
         if ($this->getProductsFromShopify($user)) {
             $this->logInfo('Products Synced successfully from Shopify for user ID: ' . $this->userId);
         } else {

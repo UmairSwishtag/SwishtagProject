@@ -30,6 +30,11 @@ class OrderSyncJob implements ShouldQueue
     {
         $this->getOrderRepository(app(OrderRepositoryInterface::class));
         $user = User::find($this->userId);
+        if (!$user) {
+            $this->logInfo('Orders sync skipped: user not found for ID ' . $this->userId);
+            return;
+        }
+
         if ($this->getOrdersFromShopify($user)) {
             $this->logInfo('Orders Synced successfully from Shopify for user ID: ' . $this->userId);
         } else {

@@ -57,21 +57,33 @@ class AppUninstalledJob extends \Osiset\ShopifyApp\Messaging\Jobs\AppUninstalled
         $this->shopDomain = ShopDomain::fromNative($this->shopDomain);
 
         $shop = $shopQuery->getByDomain($this->shopDomain);
-        $user = User::where('name', $shop->name)->first();
+        if (!$shop) {
+            Log::warning('App uninstall webhook received for unknown shop: ' . $this->shopDomain->toNative());
+            return false;
+        }
+
+        $user = User::where('name', $this->shopDomain->toNative())->first();
+        if (!$user) {
+            Log::warning('App uninstall webhook received but user record not found for shop: ' . $this->shopDomain->toNative());
+            return false;
+        }
+
         $products = $user->products;
         foreach ($products as $product) {
             $product->productImages()->delete();
-            $products->productVarients()->delete();
+            $product->productVarients()->delete();
             $product->delete();
         }
+
         $orders = $user->orders;
         foreach ($orders as $order) {
-            $orders->orderLineItems()->delete();
+            $order->orderLineItems()->delete();
             $order->orderFulfillments()->delete();
             $order->orderShippingAddress()->delete();
             $order->orderCustomer()->delete();
             $order->delete();
         }
+
         $user->delete();
         Log::info('App uninstalled for shop: ' . $this->shopDomain->toNative());
         return true;
