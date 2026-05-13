@@ -1,14 +1,50 @@
-import { useEffect } from 'react';
-import { X, Tag, Package, ExternalLink, ArrowRight, User, Bot, Zap, CheckCircle2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Tag, Package, ExternalLink, ArrowRight, User, Bot, Zap, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { ChangeTypeBadge, badgeConfig } from './ChangeTypeBadge';
+
+/**
+ * Renders Shopify product HTML (bold, italic, paragraphs, etc.).
+ * Content originates from the merchant's own Shopify store — not user-supplied input.
+ * A character-capped collapsed view is shown by default.
+ */
+function HtmlContent({ html, maxChars = 280 }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!html) return <span className="text-gray-400 text-xs italic">—</span>;
+
+  // Strip tags to estimate plain-text length for the "show more" threshold
+  const plain = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const isLong = plain.length > maxChars;
+
+  return (
+    <div className="text-sm leading-relaxed">
+      <div
+        className={`prose prose-sm max-w-none text-gray-700 overflow-hidden transition-all duration-200 ${
+          !expanded && isLong ? 'max-h-[4.5rem]' : 'max-h-[9999px]'
+        }`}
+        // Content is Shopify-sourced product HTML, not arbitrary user input
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {isLong && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 transition-colors"
+        >
+          {expanded ? <><ChevronUp size={12} />Show less</> : <><ChevronDown size={12} />Show more</>}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function formatDate(isoString) {
   const date = new Date(isoString);
-  const startOfToday = new Date('2026-04-27T00:00:00');
-  const startOfYesterday = new Date('2026-04-26T00:00:00');
-
-  if (date >= startOfToday) return 'Today';
-  if (date >= startOfYesterday) return 'Yesterday';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const itemDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (itemDay >= today) return 'Today';
+  if (itemDay >= yesterday) return 'Yesterday';
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
@@ -181,15 +217,19 @@ export function ProductDetailDrawer({ isOpen, onClose, product }) {
                               <span className="text-xs text-gray-400">{formatTime(change.createdAt)}</span>
                             </div>
 
-                            <div className="flex items-center gap-2 mt-3">
-                              <div className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2">
-                                <p className="text-xs text-gray-400 mb-0.5">Before</p>
-                                <p className="text-sm text-gray-500 line-through">{change.oldValue}</p>
+                            <div className="flex items-start gap-2 mt-3">
+                              <div className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 min-w-0">
+                                <p className="text-xs text-gray-400 mb-1">Before</p>
+                                <div className="line-through text-gray-400 opacity-70">
+                                  <HtmlContent html={change.oldValue} maxChars={160} />
+                                </div>
                               </div>
-                              <ArrowRight size={14} className="text-gray-300 flex-shrink-0" />
-                              <div className={`flex-1 border rounded-lg px-3 py-2 ${change.changeType === 'price' ? 'bg-emerald-50 border-emerald-200' : change.changeType === 'inventory' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'}`}>
-                                <p className="text-xs text-gray-400 mb-0.5">After</p>
-                                <p className={`text-sm ${change.changeType === 'price' ? 'text-emerald-800' : change.changeType === 'inventory' ? 'text-blue-800' : 'text-purple-800'}`}>{change.newValue}</p>
+                              <ArrowRight size={14} className="text-gray-300 flex-shrink-0 mt-6" />
+                              <div className={`flex-1 border rounded-lg px-3 py-2 min-w-0 ${change.changeType === 'price' ? 'bg-emerald-50 border-emerald-200' : change.changeType === 'inventory' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'}`}>
+                                <p className="text-xs text-gray-400 mb-1">After</p>
+                                <div className={change.changeType === 'price' ? 'text-emerald-800' : change.changeType === 'inventory' ? 'text-blue-800' : 'text-purple-800'}>
+                                  <HtmlContent html={change.newValue} maxChars={280} />
+                                </div>
                               </div>
                             </div>
 

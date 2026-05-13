@@ -1,6 +1,18 @@
 import { ChangeTypeBadge, badgeConfig } from './ChangeTypeBadge';
 import { User, Bot, Zap, ArrowRight } from 'lucide-react';
 
+/** Strip HTML tags and collapse whitespace into plain text. */
+function stripHtml(html) {
+  if (!html) return '';
+  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Plain text preview with a character cap. */
+function plainText(value, maxLen = 90) {
+  const text = stripHtml(String(value ?? ''));
+  return text.length > maxLen ? text.slice(0, maxLen) + '\u2026' : text;
+}
+
 function formatTime(isoString) {
   const date = new Date(isoString);
   const now = new Date();
@@ -111,9 +123,9 @@ export function TimelineItem({ item, onClick, isLast = false }) {
               </div>
 
               <div className="flex items-center gap-1.5 mt-2">
-                <span className="text-xs text-gray-400 line-through px-2 py-0.5 bg-gray-50 rounded border border-gray-100">{item.oldValue}</span>
+                <span className="text-xs text-gray-400 line-through px-2 py-0.5 bg-gray-50 rounded border border-gray-100">{plainText(item.oldValue)}</span>
                 <ArrowRight size={12} className="text-gray-300 flex-shrink-0" />
-                <span className={`text-xs px-2 py-0.5 rounded border ${item.changeType === 'price' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : item.changeType === 'inventory' ? 'text-blue-700 bg-blue-50 border-blue-100' : 'text-purple-700 bg-purple-50 border-purple-100'}`}>{item.newValue}</span>
+                <span className={`text-xs px-2 py-0.5 rounded border ${item.changeType === 'price' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : item.changeType === 'inventory' ? 'text-blue-700 bg-blue-50 border-blue-100' : 'text-purple-700 bg-purple-50 border-purple-100'}`}>{plainText(item.newValue)}</span>
               </div>
             </div>
           </div>

@@ -21,11 +21,11 @@ export function TopNav() {
     { id: 3, text: 'Bulk update completed (12 items)', time: '3h ago', unread: false },
   ]);
   const unreadCount = notifications.filter((n) => n.unread).length;
-
+const [helpOpen, setHelpOpen] = useState(false);
   const navItems = [
-    { icon: BarChart2, label: 'Dashboard', href: '/dashboard' },
-    { icon: Package, label: 'Products', href: '/products' },
-    { icon: Settings, label: 'Settings', href: '/settings' },
+    // { icon: BarChart2, label: 'Dashboard', href: '/dashboard' },
+    // { icon: Package, label: 'Products', href: '/products' },
+    // { icon: Settings, label: 'Settings', href: '/settings' },
   ];
 
   return (
@@ -40,11 +40,11 @@ export function TopNav() {
         </div>
       </div>
 
-      <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 transition-colors text-sm text-white/80 hover:text-white border border-white/10">
+      {/* <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 transition-colors text-sm text-white/80 hover:text-white border border-white/10">
         <Store size={13} className="text-emerald-400" />
         <span className="hidden md:block text-xs">my-store.myshopify.com</span>
         <ChevronDown size={12} className="text-white/40" />
-      </button>
+      </button> */}
 
       <nav className="hidden lg:flex items-center gap-0.5 ml-2">
         {navItems.map(({ icon: Icon, label, active, href }) => (
@@ -72,15 +72,60 @@ export function TopNav() {
         <span className="text-xs text-emerald-400">Live</span>
       </div>
 
-      <button className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 transition-colors text-white/60 hover:text-white/90 text-xs border border-white/10">
+      {/* <button className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 transition-colors text-white/60 hover:text-white/90 text-xs border border-white/10">
         <Search size={13} />
         <span>Quick search</span>
         <kbd className="ml-1 text-white/30 text-[10px]">⌘K</kbd>
-      </button>
+      </button> */}
 
-      <button className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-        <HelpCircle size={16} />
-      </button>
+      <div className="relative">
+  <button
+    onClick={() => setHelpOpen(!helpOpen)}
+    className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+  >
+    <HelpCircle size={16} />
+  </button>
+
+  {helpOpen && (
+    <>
+      <div
+        className="fixed inset-0 z-40"
+        onClick={() => setHelpOpen(false)}
+      />
+
+      <div className="absolute right-0 top-10 w-64 bg-white rounded-xl border border-gray-200 shadow-2xl z-50 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <p className="text-sm font-medium text-gray-900">
+            Help & Resources
+          </p>
+        </div>
+
+        <div className="p-2">
+          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <p className="text-sm text-gray-800">Documentation</p>
+            <p className="text-xs text-gray-400">
+              Learn how to use the app
+            </p>
+          </button>
+
+          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <p className="text-sm text-gray-800">Contact Support</p>
+            <p className="text-xs text-gray-400">
+              Get help from our team
+            </p>
+          </button>
+
+          <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <p className="text-sm text-gray-800">Feature Requests</p>
+            <p className="text-xs text-gray-400">
+              Suggest improvements
+            </p>
+          </button>
+        </div>
+      </div>
+    </>
+  )}
+</div>
 
       <div className="relative">
         <button
@@ -127,7 +172,7 @@ export function TopNav() {
                   </div>
                 ))}
               </div>
-              <div className="px-4 py-2 border-t border-gray-100">
+              <div className="px-4 py-2 border-t border-gray-100 hidden">
                 <button className="text-xs text-blue-600 hover:text-blue-700">
                   View all notifications
                 </button>
