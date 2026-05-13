@@ -1,6 +1,6 @@
 // Entry point adapted from the design export (renamed to .jsx)
-import { useState, useMemo, useEffect  } from 'react';
-import { Activity, DollarSign, Package, FileText, Clock, AlertTriangle } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Activity, DollarSign, Package, FileText, Clock, AlertTriangle, X, Printer, ChevronDown } from 'lucide-react';
 
 import { TopNav } from './components/TopNav';
 import { DashboardHeader } from './components/DashboardHeader';
@@ -46,6 +46,8 @@ export default function MainDashboard() {
   const [changes, setChanges] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [showReport, setShowReport] = useState(false);
   const shopParam = new URLSearchParams(window.location.search).get('shop');
 
   // Only fall back to mock data if there's a fetch error (API unreachable)
@@ -112,7 +114,12 @@ export default function MainDashboard() {
     });
   }, [sortedChanges]);
 
-  const dateGroups = useMemo(() => groupByDate(filteredChanges), [filteredChanges]);
+  // Reset pagination when search or tab changes
+  useEffect(() => { setVisibleCount(20); }, [searchValue, activeTab]);
+
+  const visibleChanges = filteredChanges.slice(0, visibleCount);
+  const hasMore = filteredChanges.length > visibleCount;
+  const dateGroups = useMemo(() => groupByDate(visibleChanges), [visibleChanges]);
 
   const selectedProduct = useMemo(() => {
     if (!selectedProductName) return null;
@@ -156,6 +163,27 @@ export default function MainDashboard() {
     setActiveTab('all');
   };
 
+  const handleExportCSV = () => {
+    if (filteredChanges.length === 0) return;
+    const headers = ['Product Name', 'SKU', 'Change Type', 'Field', 'Old Value', 'New Value', 'Source', 'Date'];
+    const escape = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const rows = filteredChanges.map((c) => [
+      escape(c.productName), escape(c.sku), escape(c.changeType), escape(c.changedField),
+      escape(c.oldValue), escape(c.newValue), escape(c.source),
+      escape(c.createdAt ? new Date(c.createdAt).toLocaleString() : ''),
+    ].join(','));
+    const csv = [headers.map(escape).join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `product-changes-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
 
   const fetchChanges = () => {
     const endpoint = shopParam
@@ -192,7 +220,10 @@ export default function MainDashboard() {
         <DashboardHeader
           searchValue={searchValue}
           onSearchChange={setSearchValue}
-          totalResults={filteredChanges.length}
+          totalResults={sortedChanges.length}
+          onRefresh={fetchChanges}
+          onExportCSV={handleExportCSV}
+          onViewReport={() => setShowReport(true)}
         />
 
         <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-5">
@@ -287,7 +318,7 @@ export default function MainDashboard() {
                   </div>
                 </div>
                 <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg">
-                  {filteredChanges.length} of {sortedChanges.length} shown
+                  {Math.min(visibleCount, filteredChanges.length)} of {filteredChanges.length} shown
                 </span>
               </div>
 
@@ -329,6 +360,20 @@ export default function MainDashboard() {
                         ))}
                       </div>
                     ))}
+                    {hasMore && (
+                      <div className="pt-4 flex justify-center">
+                        <button
+                          onClick={() => setVisibleCount((v) => v + 20)}
+                          className="flex items-center gap-2 px-5 py-2.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                        >
+                          <ChevronDown size={15} className="text-gray-400" />
+                          Load more
+                          <span className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs">
+                            {filteredChanges.length - visibleCount} remaining
+                          </span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -402,6 +447,113 @@ export default function MainDashboard() {
         onClose={() => setSelectedProductName(null)}
         product={selectedProduct}
       />
+
+      {showReport && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setShowReport(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-gray-900">Product Change Report</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {filteredChanges.length} record{filteredChanges.length !== 1 ? 's' : ''} · Generated {new Date().toLocaleString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Printer size={14} />
+                  Print
+                </button>
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Export CSV
+                </button>
+                <button
+                  onClick={() => setShowReport(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            {/* Summary stats */}
+            <div className="grid grid-cols-4 gap-px bg-gray-100 border-b border-gray-100">
+              {[
+                { label: 'Total Changes', value: counts.all, color: 'text-gray-900' },
+                { label: 'Price Updates', value: counts.price, color: 'text-emerald-700' },
+                { label: 'Inventory', value: counts.inventory, color: 'text-blue-700' },
+                { label: 'Content Edits', value: counts.content, color: 'text-purple-700' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-white px-5 py-4 text-center">
+                  <p className={`text-2xl tabular-nums ${color}`}>{value}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+            {/* Table */}
+            <div className="overflow-y-auto flex-1">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Product</th>
+                    <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Type</th>
+                    <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Change</th>
+                    <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Source</th>
+                    <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredChanges.map((c) => (
+                    <tr key={c.id} className="hover:bg-gray-50/60">
+                      <td className="px-4 py-2.5">
+                        <p className="text-xs text-gray-800 truncate max-w-[200px]">{c.productName}</p>
+                        {c.sku && <p className="text-xs text-gray-400">{c.sku}</p>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                          c.changeType === 'price' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          c.changeType === 'inventory' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          'bg-purple-50 text-purple-700 border-purple-200'
+                        }`}>
+                          {c.changeType}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {c.oldValue && c.newValue ? (
+                          <span className="text-xs text-gray-500">
+                            <span className="line-through text-gray-400">{c.oldValue}</span>
+                            <span className="mx-1 text-gray-300">→</span>
+                            <span className="text-gray-700">{c.newValue}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-600">{c.newValue ?? c.oldValue ?? '—'}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-xs text-gray-500 capitalize">{c.source}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-400 whitespace-nowrap">
+                        {c.createdAt ? new Date(c.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

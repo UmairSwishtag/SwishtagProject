@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Bell, DollarSign, Package, FileText, TrendingDown, TrendingUp, ExternalLink } from 'lucide-react';
 
 function typeConfig(type) {
@@ -88,10 +89,13 @@ function relativeTime(isoString) {
 }
 
 export function StorefrontWidget({ recentChanges = [] }) {
-  // Show the most recent 3 notable changes (price/inventory/content, not just 'created')
-  const alerts = recentChanges
-    .filter((c) => c.changedField !== 'created' || recentChanges.filter(x => x.changedField !== 'created').length === 0)
-    .slice(0, 3);
+  const [showAll, setShowAll] = useState(false);
+
+  // Prefer non-created events for the alerts list; fall back to all if none exist
+  const notable = recentChanges.filter((c) => c.changedField !== 'created');
+  const pool = notable.length > 0 ? notable : recentChanges;
+  const alerts = showAll ? pool : pool.slice(0, 3);
+  const hasMore = pool.length > 3;
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -158,7 +162,16 @@ export function StorefrontWidget({ recentChanges = [] }) {
       </div>
 
       <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/50">
-        <button className="text-xs text-blue-600 hover:text-blue-700 transition-colors">View all alerts →</button>
+        {hasMore ? (
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="text-xs text-blue-600 hover:text-blue-700 transition-colors"
+          >
+            {showAll ? 'Show less ↑' : `View all alerts → (${pool.length - 3} more)`}
+          </button>
+        ) : (
+          <p className="text-xs text-gray-400">All alerts shown</p>
+        )}
       </div>
     </div>
   );

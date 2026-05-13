@@ -1,7 +1,7 @@
 import { Search, Download, SlidersHorizontal, RefreshCw, ChevronDown, Zap } from 'lucide-react';
 import { useState } from 'react';
 
-export function DashboardHeader({ searchValue, onSearchChange, onRefresh, totalResults }) {
+export function DashboardHeader({ searchValue, onSearchChange, onRefresh, onExportCSV, onViewReport, totalResults }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dateRange] = useState('Last 7 days');
 
@@ -47,12 +47,18 @@ export function DashboardHeader({ searchValue, onSearchChange, onRefresh, totalR
             <span className="hidden sm:block">Refresh</span>
           </button>
 
-          <button className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+          <button
+            onClick={onExportCSV}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
             <Download size={14} />
             <span className="hidden sm:block">Export CSV</span>
           </button>
 
-          <button className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-emerald-700 rounded-lg hover:bg-emerald-800 transition-colors">
+          <button
+            onClick={onViewReport}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-emerald-700 rounded-lg hover:bg-emerald-800 transition-colors"
+          >
             View Report
           </button>
         </div>
