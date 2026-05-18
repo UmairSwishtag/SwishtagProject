@@ -11,21 +11,22 @@ class RegisterShopifyWebhooks
     {
         $shopId = $event->shopId->toNative();
         $shop = User::find($shopId);
+        $baseUrl = rtrim((string) config('app.url'), '/');
 
         if (!$shop) return;
 
         $webhooks = [
             [
                 'topic' => 'products/update',
-                'address' => config('app.url') . '/webhook/products/update',
+                'address' => $baseUrl . '/api/webhooks/products/update',
             ],
             [
                 'topic' => 'products/create',
-                'address' => config('app.url') . '/webhook/products/create',
+                'address' => $baseUrl . '/api/webhooks/products/create',
             ],
             [
                 'topic' => 'products/delete',
-                'address' => config('app.url') . '/webhook/products/delete',
+                'address' => $baseUrl . '/api/webhooks/products/delete',
             ],
         ];
 

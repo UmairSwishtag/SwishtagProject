@@ -16,6 +16,10 @@ use App\Http\Controllers\Shopify\ProductSyncController;
 */
 Route::group(['middleware' => ['verify.shopify']], function () {
 
+    Route::get('/', function () {
+        return redirect()->route('dashboard', request()->query());
+    })->name(config('shopify-app.route_names.home', 'home'));
+
     Route::get('/sync-products', [ProductSyncController::class, 'sync']);
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -50,6 +54,84 @@ Route::get('/authenticate/token', [AuthenticatedSessionController::class, 'token
 
 
 
+
+/*
+|--------------------------------------------------------------------------
+| App Proxy — called by Shopify on behalf of the storefront visitor
+| URL: https://{shop}/apps/tracker/price-change?product_id=...
+| Shopify forwards to: APP_URL/proxy/price-change?shop=...&product_id=...
+| No CORS issues, no block setting needed, works in production.
+|--------------------------------------------------------------------------
+*/
+Route::get('/proxy/price-change', function (\Illuminate\Http\Request $request) {
+    $shopDomain = strtolower(trim((string) $request->query('shop', '')));
+    if ($shopDomain === '') {
+        $shopDomain = strtolower(trim((string) $request->header('x-shopify-shop-domain', '')));
+    }
+    $productId     = (string) $request->query('product_id', '');
+    $productHandle = trim((string) $request->query('handle', ''));
+    $variantIdRaw  = (string) $request->query('variant_id', '');
+    $variantId     = preg_match('/(\d+)/', $variantIdRaw, $match) ? $match[1] : '';
+
+    if ($shopDomain === '' || ($productId === '' && $productHandle === '')) {
+        return response()->json(['hasChange' => false]);
+    }
+
+    $base = \App\Models\Products\Product::query()
+        ->whereHas('user', fn ($q) => $q->whereRaw('LOWER(name) = ?', [$shopDomain]));
+
+    $product = $productId !== ''
+        ? (clone $base)->where('shopify_product_id', $productId)->first()
+        : null;
+
+    if (!$product && $productHandle !== '') {
+        $product = (clone $base)->where('handle', $productHandle)->first();
+    }
+
+    if (!$product) {
+        return response()->json(['hasChange' => false]);
+    }
+
+    $changeQuery = \App\Models\ProductVersion::where('product_id', $product->id)
+        ->where('changed_field', 'price')
+        ->whereNotNull('old_value')
+        ->whereNotNull('new_value');
+
+    if ($variantId !== '') {
+        $variant = \App\Models\Products\ProductVarient::query()
+            ->where('product_id', $product->id)
+            ->where('shopify_product_varient_id', $variantId)
+            ->first();
+
+        if ($variant) {
+            $changeQuery->where('variant_id', $variant->id);
+        }
+    }
+
+    $change = $changeQuery
+        ->orderByDesc('changed_at')
+        ->first();
+
+    if (!$change && $variantId !== '') {
+        $change = \App\Models\ProductVersion::query()
+            ->where('product_id', $product->id)
+            ->where('changed_field', 'price')
+            ->whereNotNull('old_value')
+            ->whereNotNull('new_value')
+            ->orderByDesc('changed_at')
+            ->first();
+    }
+
+    if (!$change || (string) $change->old_value === (string) $change->new_value) {
+        return response()->json(['hasChange' => false]);
+    }
+
+    return response()->json([
+        'hasChange' => true,
+        'oldPrice'  => (float) $change->old_value,
+        'newPrice'  => (float) $change->new_value,
+    ]);
+});
 
 /*
 |--------------------------------------------------------------------------

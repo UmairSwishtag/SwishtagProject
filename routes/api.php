@@ -2,8 +2,9 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\ProductVersion;
-
+use App\Models\ProductVersion; 
+use App\Models\Products\Product;
+use App\Http\Controllers\Webhook\ProductWebhookController;
 /*
 |--------------------------------------------------------------------------
 | Test API
@@ -34,7 +35,10 @@ if (!function_exists('resolveChangeType')) {
         return 'content';
     }
 }
-
+Route::post('/webhooks/products/{action}', [ProductWebhookController::class, 'handle'])
+    ->middleware('auth.webhook')
+    ->whereIn('action', ['create', 'update', 'delete'])
+    ->name('webhooks.products.handle');
 Route::middleware(['verify.shopify'])->get('/product-changes', function () {
     $shop = request()->user();
 
@@ -88,4 +92,81 @@ Route::middleware(['verify.shopify'])->get('/product-changes', function () {
             'sku'         => $sku,
         ];
     });
+});
+
+// Public endpoint for storefront app blocks (no Shopify admin session available there)
+Route::get('/storefront/product-price-change', function (Request $request) {
+    $shopDomain = strtolower(trim((string) $request->query('shop', '')));
+    $shopifyProductId = (string) $request->query('product_id', '');
+    $productHandle = trim((string) $request->query('handle', ''));
+
+    if ($shopDomain === '' || ($shopifyProductId === '' && $productHandle === '')) {
+        return response()->json(['hasChange' => false]);
+    }
+
+    $productQuery = Product::query()
+        ->whereHas('user', function ($query) use ($shopDomain) {
+            $query->whereRaw('LOWER(name) = ?', [$shopDomain]);
+        });
+
+    $product = null;
+
+    if ($shopifyProductId !== '') {
+        $product = (clone $productQuery)
+            ->where('shopify_product_id', $shopifyProductId)
+            ->first();
+    }
+
+    if (!$product && $productHandle !== '') {
+        $product = (clone $productQuery)
+            ->where('handle', $productHandle)
+            ->first();
+    }
+
+    if (!$product) {
+        return response()->json(['hasChange' => false]);
+    }
+
+    $latestPriceChange = ProductVersion::query()
+    ->where('product_id', $product->id)
+    ->where('changed_field', 'price')
+    ->whereNotNull('old_value')
+    ->whereNotNull('new_value')
+    ->orderByDesc('changed_at')
+    ->first();
+
+    
+   $latestPriceChange = ProductVersion::query()
+    ->where('product_id', $product->id)
+    ->where('changed_field', 'price')
+    ->whereNotNull('old_value')
+    ->whereNotNull('new_value')
+    ->orderByDesc('changed_at')
+    ->first();
+
+if (!$latestPriceChange) {
+    return response()->json(['hasChange' => false]);
+}
+
+$origin = request()->header('Origin', '');
+    $allowOrigin = preg_match('/^https:\/\/[a-z0-9\-]+\.myshopify\.com$/', $origin) ? $origin : '*';
+
+    return response()->json([
+        'hasChange' => true,
+        'oldPrice' => (float) $latestPriceChange->old_value,
+        'newPrice' => (float) $latestPriceChange->new_value,
+    ])->header('Access-Control-Allow-Origin', $allowOrigin)
+      ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      ->header('Access-Control-Allow-Headers', 'Content-Type');
+});
+
+// Handle OPTIONS preflight for the storefront endpoint
+Route::options('/storefront/product-price-change', function (Request $request) {
+    $origin = $request->header('Origin', '');
+    $allowOrigin = preg_match('/^https:\/\/[a-z0-9\-]+\.myshopify\.com$/', $origin) ? $origin : '*';
+    return response('', 204)
+        ->header('Access-Control-Allow-Origin', $allowOrigin)
+        ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type')
+        ->header('Access-Control-Max-Age', '86400');
 });

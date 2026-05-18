@@ -55,7 +55,10 @@ return [
     |
     */
 
-    'manual_routes' => env('SHOPIFY_MANUAL_ROUTES', false),
+    'manual_routes' => env(
+        'SHOPIFY_MANUAL_ROUTES',
+        strtoupper((string) env('SHOPIFY_FRONTEND_ENGINE', 'BLADE')) === 'REACT' ? 'home' : false
+    ),
 
     /*
     |--------------------------------------------------------------------------
@@ -307,7 +310,8 @@ return [
     |
     */
 
-    'billing_enabled' => (bool) env('SHOPIFY_BILLING_ENABLED', false),
+    'billing_enabled' => (bool) env('SHOPIFY_BILLING_ENABLED', false)
+        && (bool) env('SHOPIFY_APPBRIDGE_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------
