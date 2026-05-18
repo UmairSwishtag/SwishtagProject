@@ -39,9 +39,15 @@ function groupByDate(items) {
   return Array.from(map.entries());
 }
 
+function stripHtmlTags(value) {
+  return String(value ?? '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
 export default function Products() {
   const [searchValue, setSearchValue] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  const [dateRange, setDateRange] = useState('7d');
+  const [changeTypeFilter, setChangeTypeFilter] = useState('');
   const [selectedProductName, setSelectedProductName] = useState(null);
   const [changes, setChanges] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,12 +82,24 @@ export default function Products() {
     return sortedChanges.filter((change) => {
       const q = searchValue.toLowerCase();
       const matchesSearch =
-        change.productName.toLowerCase().includes(q) ||
-        (change.sku?.toLowerCase().includes(q) ?? false);
+        stripHtmlTags(change.productName).toLowerCase().includes(q) ||
+        stripHtmlTags(change.sku).toLowerCase().includes(q);
+
+      const changeDate = change.createdAt ? new Date(change.createdAt) : null;
+      let matchesDateRange = true;
+      if (changeDate instanceof Date && !Number.isNaN(changeDate.getTime()) && dateRange !== 'all') {
+        const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90;
+        const cutoff = new Date();
+        cutoff.setHours(0, 0, 0, 0);
+        cutoff.setDate(cutoff.getDate() - (days - 1));
+        matchesDateRange = changeDate >= cutoff;
+      }
+
       const matchesTab = activeTab === 'all' || change.changeType === activeTab;
-      return matchesSearch && matchesTab;
+      const matchesChangeType = changeTypeFilter === '' || change.changeType === changeTypeFilter;
+      return matchesSearch && matchesTab && matchesDateRange && matchesChangeType;
     });
-  }, [sortedChanges, searchValue, activeTab]);
+  }, [sortedChanges, searchValue, activeTab, dateRange, changeTypeFilter]);
 
   const counts = useMemo(
     () => ({
@@ -128,7 +146,7 @@ export default function Products() {
   const dateGroups = useMemo(() => groupByDate(filteredChanges), [filteredChanges]);
 
   // Pagination
-  useEffect(() => { setVisibleCount(20); }, [searchValue, activeTab]);
+  useEffect(() => { setVisibleCount(20); }, [searchValue, activeTab, dateRange, changeTypeFilter]);
   const visibleChanges = filteredChanges.slice(0, visibleCount);
   const hasMore = filteredChanges.length > visibleCount;
   const visibleDateGroups = useMemo(() => groupByDate(visibleChanges), [visibleChanges]);
@@ -173,15 +191,19 @@ export default function Products() {
   const handleReset = () => {
     setSearchValue('');
     setActiveTab('all');
+    setDateRange('7d');
+    setChangeTypeFilter('');
   };
+
+  const hasActiveHeaderFilters = searchValue.trim() !== '' || dateRange !== '7d' || changeTypeFilter !== '';
 
   const handleExportCSV = () => {
     if (filteredChanges.length === 0) return;
     const headers = ['Product Name', 'SKU', 'Change Type', 'Field', 'Old Value', 'New Value', 'Source', 'Date'];
     const escape = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     const rows = filteredChanges.map((c) => [
-      escape(c.productName), escape(c.sku), escape(c.changeType), escape(c.changedField),
-      escape(c.oldValue), escape(c.newValue), escape(c.source),
+      escape(stripHtmlTags(c.productName)), escape(stripHtmlTags(c.sku)), escape(c.changeType), escape(c.changedField),
+      escape(stripHtmlTags(c.oldValue)), escape(stripHtmlTags(c.newValue)), escape(c.source),
       escape(c.createdAt ? new Date(c.createdAt).toLocaleString() : ''),
     ].join(','));
     const csv = [headers.map(escape).join(','), ...rows].join('\n');
@@ -205,6 +227,12 @@ export default function Products() {
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           totalResults={sortedChanges.length}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          changeTypeFilter={changeTypeFilter}
+          onChangeTypeFilter={setChangeTypeFilter}
+          onClearFilters={handleReset}
+          hasActiveFilters={hasActiveHeaderFilters}
           onRefresh={fetchChanges}
           onExportCSV={handleExportCSV}
           onViewReport={() => setShowReport(true)}
@@ -475,8 +503,8 @@ export default function Products() {
                   {filteredChanges.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50/60">
                       <td className="px-4 py-2.5">
-                        <p className="text-xs text-gray-800 truncate max-w-[200px]">{c.productName}</p>
-                        {c.sku && <p className="text-xs text-gray-400">{c.sku}</p>}
+                        <p className="text-xs text-gray-800 truncate max-w-[200px]">{stripHtmlTags(c.productName) || '—'}</p>
+                        {stripHtmlTags(c.sku) && <p className="text-xs text-gray-400">{stripHtmlTags(c.sku)}</p>}
                       </td>
                       <td className="px-4 py-2.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full border ${
@@ -486,14 +514,14 @@ export default function Products() {
                         }`}>{c.changeType}</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        {c.oldValue && c.newValue ? (
+                        {stripHtmlTags(c.oldValue) && stripHtmlTags(c.newValue) ? (
                           <span className="text-xs text-gray-500">
-                            <span className="line-through text-gray-400">{c.oldValue}</span>
+                            <span className="line-through text-gray-400">{stripHtmlTags(c.oldValue)}</span>
                             <span className="mx-1 text-gray-300">→</span>
-                            <span className="text-gray-700">{c.newValue}</span>
+                            <span className="text-gray-700">{stripHtmlTags(c.newValue)}</span>
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-600">{c.newValue ?? c.oldValue ?? '—'}</span>
+                          <span className="text-xs text-gray-600">{stripHtmlTags(c.newValue) || stripHtmlTags(c.oldValue) || '—'}</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-gray-500 capitalize">{c.source}</td>
