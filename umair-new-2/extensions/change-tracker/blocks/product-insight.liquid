@@ -1,0 +1,193 @@
+{% if product %}
+  {% assign selected_variant = product.selected_or_first_available_variant %}
+
+  <div id="ct-price-change-{{ block.id }}"
+       class="ct-price-change"
+      style="display:none;"
+      data-ct-product-id="{{ product.id }}"
+      data-ct-handle="{{ product.handle | escape }}"
+      data-ct-initial-variant-id="{{ selected_variant.id }}"
+       {{ block.shopify_attributes }}>
+
+    {% comment %} <p class="ct-price-change-title">Price Updated</p> {% endcomment %}
+
+    <p class="ct-price-change-text">
+      Old Price: <span data-ct-old></span>
+      {% comment %} <span data-ct-current></span> {% endcomment %}
+    </p>
+{% comment %} 
+    <p class="ct-price-change-text">
+      Current Price: <span data-ct-current>{{ selected_variant.price | money }}</span>
+    </p> {% endcomment %}
+
+  </div>
+
+  <style>
+    #ct-price-change-{{ block.id }} {
+      /* border: 1px solid #86efac;
+      background: #f0fdf4;
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 12px; */
+    }
+    #ct-price-change-{{ block.id }} .ct-price-change-title {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #166534;
+    }
+    #ct-price-change-{{ block.id }} .ct-price-change-text {
+      margin: 4px 0;
+      font-size: 16px;
+      color: #333333;
+      font-weight: 700;
+    }
+    #ct-price-change-{{ block.id }} [data-ct-old] {
+      text-decoration: line-through;
+      color: #991b1b;
+      font-weight: 700;
+      margin-left: 5px;
+    }
+    #ct-price-change-{{ block.id }} [data-ct-current] {
+      font-weight: 700;
+      margin-left: 5px;
+    }
+  </style>
+
+  <script>
+    (() => {
+      const root = document.getElementById('ct-price-change-{{ block.id }}');
+      if (!root) return;
+
+      const fmt = (d) => '$' + Number(d).toFixed(2);
+
+      const oldEl = root.querySelector('[data-ct-old]');
+      const currentEl = root.querySelector('[data-ct-current]');
+      let activeVariantId = root.dataset.ctInitialVariantId || '';
+
+      const hide = () => {
+        if (oldEl) oldEl.textContent = '';
+        if (currentEl) currentEl.textContent = '';
+        root.style.display = 'none';
+      };
+
+      const getSelectedVariantId = () => {
+        const queryVariant = new URLSearchParams(window.location.search).get('variant');
+        if (queryVariant) return queryVariant;
+
+        const productForm = root.closest('section, main, .shopify-section, .product')
+          ?.querySelector('form[action*="/cart/add"]');
+
+        const formVariant = productForm?.querySelector('input[name="id"], select[name="id"]')?.value;
+        if (formVariant) return formVariant;
+
+        return activeVariantId || root.dataset.ctInitialVariantId || '';
+      };
+
+      let lastRequestId = 0;
+      const fetchPriceChange = (incomingVariantId) => {
+        const requestId = ++lastRequestId;
+
+        const params = new URLSearchParams({
+          product_id: root.dataset.ctProductId || '{{ product.id }}',
+          handle: root.dataset.ctHandle || '{{ product.handle | url_encode }}',
+        });
+
+        const variantId = incomingVariantId || getSelectedVariantId();
+        if (variantId) activeVariantId = String(variantId);
+        if (variantId) params.set('variant_id', variantId);
+
+        fetch('/apps/tracker/price-change?' + params.toString())
+          .then((r) => r.ok ? r.json() : Promise.reject())
+          .then((data) => {
+            if (requestId !== lastRequestId) return;
+
+            if (!data || !data.hasChange) {
+              hide();
+              return;
+            }
+
+            if (oldEl) oldEl.textContent = fmt(data.oldPrice);
+            if (currentEl) currentEl.textContent = ' → ' + fmt(data.newPrice);
+            root.style.display = 'block';
+          })
+          .catch(() => {
+            if (requestId === lastRequestId) hide();
+          });
+      };
+
+      fetchPriceChange();
+
+      document.addEventListener('variant:change', (event) => {
+        const maybeVariantId = event?.detail?.variant?.id || event?.detail?.id || '';
+        fetchPriceChange(maybeVariantId ? String(maybeVariantId) : '');
+      });
+      document.addEventListener('variant:changed', (event) => {
+        const maybeVariantId = event?.detail?.variant?.id || event?.detail?.id || '';
+        fetchPriceChange(maybeVariantId ? String(maybeVariantId) : '');
+      });
+      document.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (target.matches('input[name="id"], select[name="id"]')) {
+          fetchPriceChange(target.value || '');
+        }
+      });
+      document.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (target.matches('input[name="id"], select[name="id"]')) {
+          fetchPriceChange(target.value || '');
+        }
+      });
+      document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest('form[action*="/cart/add"] [name^="options"], form[action*="/cart/add"] .product-form__input')) {
+          setTimeout(() => fetchPriceChange(), 80);
+        }
+      });
+
+      const patchHistory = (methodName) => {
+        const original = history[methodName];
+        if (typeof original !== 'function') return;
+
+        history[methodName] = function (...args) {
+          const result = original.apply(this, args);
+          setTimeout(() => fetchPriceChange(), 0);
+          return result;
+        };
+      };
+
+      patchHistory('pushState');
+      patchHistory('replaceState');
+
+      const variantInput = document.querySelector('form[action*="/cart/add"] input[name="id"], form[action*="/cart/add"] select[name="id"]');
+      if (variantInput && typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(() => {
+          const value = variantInput.value || '';
+          fetchPriceChange(value);
+        });
+
+        observer.observe(variantInput, {
+          attributes: true,
+          attributeFilter: ['value'],
+          childList: true,
+          subtree: true,
+        });
+      }
+
+      window.addEventListener('popstate', fetchPriceChange);
+    })();
+  </script>
+
+{% endif %}
+
+{% schema %}
+{
+  "name": "Product Change Insight",
+  "target": "section",
+  "settings": []
+}
+{% endschema %} 
