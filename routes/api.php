@@ -55,7 +55,7 @@ Route::middleware(['verify.shopify'])->get('/product-changes', function () {
         ->take(200)
         ->get();
 
-    return $versions->map(function ($version) {
+    return $versions->map(function ($version) use ($shop) {
         $product = $version->product;
 
         // Prefer the specific variant's SKU, fall back to the product's first variant
@@ -79,10 +79,23 @@ Route::middleware(['verify.shopify'])->get('/product-changes', function () {
             $newValue = $newValue !== null ? $newValue . ' units' : null;
         }
 
+        $shopDomain = strtolower(trim((string) ($shop?->name ?? '')));
+        $shopifyProductId = $product?->shopify_product_id ? (string) $product->shopify_product_id : null;
+        $adminProductUrl = ($shopDomain !== '' && $shopifyProductId)
+            ? sprintf('https://%s/admin/products/%s', $shopDomain, $shopifyProductId)
+            : null;
+        $storefrontProductUrl = ($shopDomain !== '' && !empty($product?->handle))
+            ? sprintf('https://%s/products/%s', $shopDomain, ltrim((string) $product->handle, '/'))
+            : null;
+
         return [
             'id'          => $version->id,
             'productName' => $product?->title,
             'productImage'=> $product?->productMedias->first()?->src,
+            'shopifyProductId' => $shopifyProductId,
+            'productHandle' => $product?->handle,
+            'adminProductUrl' => $adminProductUrl,
+            'storefrontProductUrl' => $storefrontProductUrl,
             'changeType'  => $changeType,
             'changedField'=> $version->changed_field,
             'oldValue'    => $oldValue,

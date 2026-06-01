@@ -154,13 +154,23 @@ export default function Products() {
   const selectedProduct = useMemo(() => {
     if (!selectedProductName) return null;
 
+    const changesForProduct = sortedChanges.filter((c) => c.productName === selectedProductName);
+    const firstFromChanges = changesForProduct[0] ?? null;
+
     // If we have a full product entry, return it
     const full = productDetails[selectedProductName];
-    if (full) return full;
+    if (full) {
+      return {
+        ...full,
+        adminProductUrl: full.adminProductUrl || firstFromChanges?.adminProductUrl || null,
+        storefrontProductUrl: full.storefrontProductUrl || firstFromChanges?.storefrontProductUrl || null,
+        shopifyProductId: full.shopifyProductId || firstFromChanges?.shopifyProductId || null,
+        productHandle: full.productHandle || firstFromChanges?.productHandle || null,
+      };
+    }
 
     // Fallback: build a minimal product object from the changes list so
     // the drawer can open for items that don't have a full productDetails entry.
-    const changesForProduct = sortedChanges.filter((c) => c.productName === selectedProductName);
     if (changesForProduct.length === 0) return null;
 
     const first = changesForProduct[0];
@@ -182,6 +192,10 @@ export default function Products() {
       sku: first.sku,
       status: 'active',
       category: 'Uncategorized',
+      adminProductUrl: first.adminProductUrl || null,
+      storefrontProductUrl: first.storefrontProductUrl || null,
+      shopifyProductId: first.shopifyProductId || null,
+      productHandle: first.productHandle || null,
       changes: changesForProduct,
     };
   }, [selectedProductName, productDetails, sortedChanges]);

@@ -111,6 +111,12 @@ export function ProductDetailDrawer({ isOpen, onClose, product }) {
 
   if (!product) return null;
 
+  const productUrl = product.adminProductUrl || product.storefrontProductUrl || '';
+  const openProductLink = () => {
+    if (!productUrl) return;
+    window.open(productUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const grouped = groupByDate(product.changes);
   const dateGroups = Object.entries(grouped);
 
@@ -151,7 +157,12 @@ export function ProductDetailDrawer({ isOpen, onClose, product }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <h3 className="text-gray-900 leading-tight">{product.name}</h3>
-                  <button className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                  <button
+                    onClick={openProductLink}
+                    disabled={!productUrl}
+                    title={productUrl ? 'Open product' : 'Product link unavailable'}
+                    className="text-gray-400 hover:text-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed flex-shrink-0"
+                  >
                     <ExternalLink size={14} />
                   </button>
                 </div>
