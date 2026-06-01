@@ -3,17 +3,11 @@ nixPkgs = ['...', 'nodejs', 'php82', 'php82Packages.composer']
 
 [phases.install]
 cmds = [
-  'composer install --no-dev --optimize-autoloader',
-  'npm ci',
-  'npm run build'
-]
-
-[phases.build]
-cmds = [
-  'php artisan config:cache',
-  'php artisan route:cache',
-  'php artisan view:cache'
+  'composer install --no-dev --optimize-autoloader --no-interaction',
+  'npm ci --include=dev',
+  'npm run build',
+  'chmod +x railway-start.sh'
 ]
 
 [start]
-cmd = 'php artisan serve --host=0.0.0.0 --port=$PORT'
+cmd = 'bash railway-start.sh'

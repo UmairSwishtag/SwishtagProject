@@ -12,12 +12,15 @@ This guide will help you deploy your Laravel Shopify application to Railway.
 
 The following files have been created/modified for Railway deployment:
 
-- `Procfile` - Defines the web process for Railway
+- `Procfile` - Defines the web process for Railway (uses railway-start.sh)
 - `nixpacks.toml` - Configuration for Nixpacks build system
-- `railway.json` - Railway-specific deployment configuration
-- `deploy.sh` - Deployment script for migrations and caching
+- `railway.json` - Railway-specific deployment configuration (healthcheck at /up)
+- `railway-start.sh` - **NEW:** Startup script that handles migrations, caching, and server start
+- `deploy.sh` - Alternative deployment script for manual use
 - `.env.example` - Updated with Railway-friendly defaults
+- `.env.railway` - Production environment template
 - `composer.json` - Added deployment scripts
+- `HEALTHCHECK_TROUBLESHOOTING.md` - **NEW:** Comprehensive healthcheck debugging guide
 
 ## Deployment Steps
 
@@ -62,15 +65,18 @@ In Railway dashboard, go to your service → "Variables" tab and add:
 ```
 APP_NAME=YourAppName
 APP_ENV=production
-APP_KEY=base64:your-app-key-here
+APP_KEY=    # CRITICAL: Generate with: php artisan key:generate --show
 APP_DEBUG=false
 APP_URL=https://your-app.railway.app
 ```
 
-To generate APP_KEY locally:
+⚠️ **IMPORTANT:** APP_KEY is REQUIRED! Generate it locally:
 ```bash
 php artisan key:generate --show
+# Copy the output (including "base64:") to Railway Variables
 ```
+
+Without APP_KEY, your deployment will fail!
 
 #### Database Variables (if using PostgreSQL):
 ```
@@ -132,27 +138,32 @@ MAIL_MAILER=log
 ```
 
 ### 6. Deploy
+**⚠️ Common Deployment Issues:**
+- If healthcheck fails, see `HEALTHCHECK_TROUBLESHOOTING.md`
+- Ensure APP_KEY is set before deploying
+- Check that database service is running
 
-Railway will automatically deploy when you push to your repository. You can also manually trigger a deployment from the Railway dashboard.
+### 7. Monitor First Deployment
 
-### 7. Run Migrations (First Deployment)
+1. Watch the build logs for any errors
+2. Watch the deploy logs - should see:
+   ```
+   🚀 Starting Railway deployment...
+   📊 Running database migrations...
+   ✅ Deployment preparation complete!
+   🌐 Starting web server...
+   ```
+3. Healthcheck should pass within 1-2 minutes
 
-After the first deployment, run migrations manually:
+### 8. If Healthcheck Fails
 
-1. Go to your service in Railway dashboard
-2. Click on "Settings" tab
-3. Add a "Deploy Command" or use the Railway CLI:
+See the comprehensive guide: [HEALTHCHECK_TROUBLESHOOTING.md](HEALTHCHECK_TROUBLESHOOTING.md)
 
-```bash
-# Install Railway CLI
-npm i -g @railway/cli
-
-# Login
-railway login
-
-# Link to your project
-railway link
-
+Quick checks:
+1. ✅ APP_KEY is set
+2. ✅ Database service is running
+3. ✅ DB_CONNECTION matches your database type (pgsql/mysql)
+4. ✅ Check deploy logs for specific errors
 # Run migrations
 railway run php artisan migrate --force
 ```
