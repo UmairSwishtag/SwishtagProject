@@ -60,11 +60,35 @@
       const root = document.getElementById('ct-price-change-{{ block.id }}');
       if (!root) return;
 
-      const fmt = (d) => '$' + Number(d).toFixed(2);
+      const toVariantId = (value) => {
+        if (value === null || value === undefined) return '';
+        const raw = String(value).trim();
+        if (!raw) return '';
+
+        const gidMatch = raw.match(/ProductVariant\/(\d+)/i);
+        if (gidMatch) return gidMatch[1];
+
+        const onlyDigits = raw.match(/^\d+$/);
+        if (onlyDigits) return onlyDigits[0];
+
+        const trailingDigits = raw.match(/(\d{6,})$/);
+        return trailingDigits ? trailingDigits[1] : '';
+      };
+
+      const fmt = (amount) => {
+        const numeric = Number(amount);
+        if (!Number.isFinite(numeric)) return '';
+
+        if (window.Shopify && typeof window.Shopify.formatMoney === 'function') {
+          return window.Shopify.formatMoney(Math.round(numeric * 100));
+        }
+
+        return '$' + numeric.toFixed(2);
+      };
 
       const oldEl = root.querySelector('[data-ct-old]');
       const currentEl = root.querySelector('[data-ct-current]');
-      let activeVariantId = root.dataset.ctInitialVariantId || '';
+      let activeVariantId = toVariantId(root.dataset.ctInitialVariantId || '');
 
       const hide = () => {
         if (oldEl) oldEl.textContent = '';
@@ -72,17 +96,40 @@
         root.style.display = 'none';
       };
 
+      const findCandidateForms = () => {
+        const scoped = root.closest('.shopify-section, section, main, .product, .product__info-wrapper');
+        const scopedForms = scoped ? Array.from(scoped.querySelectorAll('form[action*="/cart/add"]')) : [];
+        if (scopedForms.length) return scopedForms;
+        return Array.from(document.querySelectorAll('form[action*="/cart/add"]'));
+      };
+
+      const findVariantIdInForms = () => {
+        const forms = findCandidateForms();
+
+        for (const form of forms) {
+          const idInput = form.querySelector('input[name="id"], select[name="id"]');
+          const inputVariant = toVariantId(idInput && 'value' in idInput ? idInput.value : '');
+          if (inputVariant) return inputVariant;
+
+          const checkedWithData = form.querySelector('[name^="options"]:checked[data-variant-id], [data-variant-id][aria-checked="true"]');
+          const dataVariant = toVariantId(checkedWithData ? checkedWithData.getAttribute('data-variant-id') : '');
+          if (dataVariant) return dataVariant;
+        }
+
+        return '';
+      };
+
       const getSelectedVariantId = () => {
-        const queryVariant = new URLSearchParams(window.location.search).get('variant');
+        const queryVariant = toVariantId(new URLSearchParams(window.location.search).get('variant'));
         if (queryVariant) return queryVariant;
 
-        const productForm = root.closest('section, main, .shopify-section, .product')
-          ?.querySelector('form[action*="/cart/add"]');
-
-        const formVariant = productForm?.querySelector('input[name="id"], select[name="id"]')?.value;
+        const formVariant = findVariantIdInForms();
         if (formVariant) return formVariant;
 
-        return activeVariantId || root.dataset.ctInitialVariantId || '';
+        const analyticsVariant = toVariantId(window.ShopifyAnalytics?.meta?.selectedVariantId || '');
+        if (analyticsVariant) return analyticsVariant;
+
+        return activeVariantId || toVariantId(root.dataset.ctInitialVariantId || '');
       };
 
       let lastRequestId = 0;
@@ -94,11 +141,17 @@
           handle: root.dataset.ctHandle || '{{ product.handle | url_encode }}',
         });
 
-        const variantId = incomingVariantId || getSelectedVariantId();
+        const variantId = toVariantId(incomingVariantId) || getSelectedVariantId();
         if (variantId) activeVariantId = String(variantId);
         if (variantId) params.set('variant_id', variantId);
+        params.set('_', String(Date.now()));
 
-        fetch('/apps/tracker/price-change?' + params.toString())
+        fetch('/apps/tracker/price-change?' + params.toString(), {
+          method: 'GET',
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store',
+        })
           .then((r) => r.ok ? r.json() : Promise.reject())
           .then((data) => {
             if (requestId !== lastRequestId) return;
@@ -117,37 +170,50 @@
           });
       };
 
+      let scheduledRefresh = 0;
+      const scheduleFetchPriceChange = (variantId, delay = 30) => {
+        window.clearTimeout(scheduledRefresh);
+        scheduledRefresh = window.setTimeout(() => {
+          fetchPriceChange(variantId || '');
+        }, delay);
+      };
+
       fetchPriceChange();
 
       document.addEventListener('variant:change', (event) => {
-        const maybeVariantId = event?.detail?.variant?.id || event?.detail?.id || '';
-        fetchPriceChange(maybeVariantId ? String(maybeVariantId) : '');
+        const maybeVariantId = event?.detail?.variant?.id || event?.detail?.id || event?.detail?.variantId || '';
+        scheduleFetchPriceChange(maybeVariantId ? String(maybeVariantId) : '');
       });
       document.addEventListener('variant:changed', (event) => {
-        const maybeVariantId = event?.detail?.variant?.id || event?.detail?.id || '';
-        fetchPriceChange(maybeVariantId ? String(maybeVariantId) : '');
+        const maybeVariantId = event?.detail?.variant?.id || event?.detail?.id || event?.detail?.variantId || '';
+        scheduleFetchPriceChange(maybeVariantId ? String(maybeVariantId) : '');
+      });
+      document.addEventListener('product:variant-change', (event) => {
+        const maybeVariantId = event?.detail?.variant?.id || event?.detail?.id || event?.detail?.variantId || '';
+        scheduleFetchPriceChange(maybeVariantId ? String(maybeVariantId) : '');
       });
       document.addEventListener('change', (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (target.matches('input[name="id"], select[name="id"]')) {
-          fetchPriceChange(target.value || '');
+        if (target.matches('input[name="id"], select[name="id"], [name^="options"], [data-variant-id]')) {
+          scheduleFetchPriceChange(target.getAttribute('data-variant-id') || target.value || '');
         }
       });
       document.addEventListener('input', (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (target.matches('input[name="id"], select[name="id"]')) {
-          fetchPriceChange(target.value || '');
+        if (target.matches('input[name="id"], select[name="id"], [name^="options"], [data-variant-id]')) {
+          scheduleFetchPriceChange(target.getAttribute('data-variant-id') || target.value || '');
         }
       });
       document.addEventListener('click', (event) => {
         const target = event.target;
         if (!(target instanceof Element)) return;
         if (target.closest('form[action*="/cart/add"] [name^="options"], form[action*="/cart/add"] .product-form__input')) {
-          setTimeout(() => fetchPriceChange(), 80);
+          scheduleFetchPriceChange('', 90);
         }
       });
+      document.addEventListener('shopify:section:load', () => scheduleFetchPriceChange('', 60));
 
       const patchHistory = (methodName) => {
         const original = history[methodName];
@@ -155,7 +221,7 @@
 
         history[methodName] = function (...args) {
           const result = original.apply(this, args);
-          setTimeout(() => fetchPriceChange(), 0);
+          scheduleFetchPriceChange('', 10);
           return result;
         };
       };
@@ -163,22 +229,52 @@
       patchHistory('pushState');
       patchHistory('replaceState');
 
-      const variantInput = document.querySelector('form[action*="/cart/add"] input[name="id"], form[action*="/cart/add"] select[name="id"]');
-      if (variantInput && typeof MutationObserver !== 'undefined') {
-        const observer = new MutationObserver(() => {
-          const value = variantInput.value || '';
-          fetchPriceChange(value);
+      if (typeof MutationObserver !== 'undefined') {
+        const variantSelector = 'input[name="id"], select[name="id"], [data-variant-id], [name^="options"]';
+        const nodeHasVariantControls = (node) => {
+          if (!(node instanceof Element)) return false;
+          if (node.matches(variantSelector)) return true;
+          return Boolean(node.querySelector(variantSelector));
+        };
+
+        const observer = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            const target = mutation.target;
+            if (!(target instanceof HTMLElement)) continue;
+
+            if (target.matches(variantSelector)) {
+              const value = target.getAttribute('data-variant-id') || target.getAttribute('value') || target.value || '';
+              scheduleFetchPriceChange(value, 20);
+              return;
+            }
+
+            if (mutation.type === 'childList') {
+              for (const node of mutation.addedNodes) {
+                if (nodeHasVariantControls(node)) {
+                  scheduleFetchPriceChange('', 40);
+                  return;
+                }
+              }
+
+              for (const node of mutation.removedNodes) {
+                if (nodeHasVariantControls(node)) {
+                  scheduleFetchPriceChange('', 40);
+                  return;
+                }
+              }
+            }
+          }
         });
 
-        observer.observe(variantInput, {
+        observer.observe(document.body, {
           attributes: true,
-          attributeFilter: ['value'],
+          attributeFilter: ['value', 'data-variant-id', 'checked', 'selected'],
           childList: true,
           subtree: true,
         });
       }
 
-      window.addEventListener('popstate', fetchPriceChange);
+      window.addEventListener('popstate', () => scheduleFetchPriceChange('', 20));
     })();
   </script>
 
