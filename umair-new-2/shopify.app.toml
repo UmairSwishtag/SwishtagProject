@@ -2,7 +2,7 @@
 
 client_id = "f6288c197dc22e92cab49231115ac7c7"
 name = "umair-New-2"
-application_url = "https://umair.xoarhigh.info"
+application_url = "https://swishtagproject-production.up.railway.app"
 embedded = true
 
 [build]
@@ -18,9 +18,9 @@ optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "https://umair.xoarhigh.info/authenticate" ]
+redirect_urls = [ "https://swishtagproject-production.up.railway.app/authenticate" ]
 
 [app_proxy]
-url = "https://umair.xoarhigh.info/proxy"
+url = "https://swishtagproject-production.up.railway.app/proxy"
 subpath = "tracker"
 prefix = "apps"
