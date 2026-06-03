@@ -89,11 +89,39 @@
       const oldEl = root.querySelector('[data-ct-old]');
       const currentEl = root.querySelector('[data-ct-current]');
       let activeVariantId = toVariantId(root.dataset.ctInitialVariantId || '');
+      const productVariants = {{ product.variants | json }};
 
       const hide = () => {
         if (oldEl) oldEl.textContent = '';
         if (currentEl) currentEl.textContent = '';
         root.style.display = 'none';
+      };
+
+      const show = (oldPrice, newPrice) => {
+        if (oldEl) oldEl.textContent = fmt(oldPrice);
+        if (currentEl) currentEl.textContent = ' -> ' + fmt(newPrice);
+        root.style.display = 'block';
+      };
+
+      const getVariantFallbackPrice = (variantIdCandidate) => {
+        if (!Array.isArray(productVariants) || productVariants.length === 0) return null;
+
+        const wantedId = toVariantId(variantIdCandidate || getSelectedVariantId());
+        if (!wantedId) return null;
+
+        const match = productVariants.find((variant) => toVariantId(variant?.id) === wantedId);
+        if (!match) return null;
+
+        const compareAtCents = Number(match.compare_at_price);
+        const priceCents = Number(match.price);
+
+        if (!Number.isFinite(compareAtCents) || !Number.isFinite(priceCents)) return null;
+        if (compareAtCents <= priceCents) return null;
+
+        return {
+          oldPrice: compareAtCents / 100,
+          newPrice: priceCents / 100,
+        };
       };
 
       const findCandidateForms = () => {
@@ -157,13 +185,29 @@
             if (requestId !== lastRequestId) return;
 
             if (!data || !data.hasChange) {
-              hide();
+              const fallback = getVariantFallbackPrice(variantId);
+              if (fallback) {
+                show(fallback.oldPrice, fallback.newPrice);
+              } else {
+                hide();
+              }
               return;
             }
 
-            if (oldEl) oldEl.textContent = fmt(data.oldPrice);
-            if (currentEl) currentEl.textContent = ' → ' + fmt(data.newPrice);
-            root.style.display = 'block';
+            const oldPrice = Number(data.oldPrice);
+            const newPrice = Number(data.newPrice);
+
+            if (Number.isFinite(oldPrice) && Number.isFinite(newPrice)) {
+              show(oldPrice, newPrice);
+              return;
+            }
+
+            const fallback = getVariantFallbackPrice(variantId);
+            if (fallback) {
+              show(fallback.oldPrice, fallback.newPrice);
+            } else {
+              hide();
+            }
           })
           .catch(() => {
             if (requestId === lastRequestId) hide();

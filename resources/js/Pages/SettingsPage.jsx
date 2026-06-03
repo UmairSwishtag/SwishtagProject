@@ -48,6 +48,9 @@ export default function Products() {
   const [activeTab, setActiveTab] = useState('all');
   const [dateRange, setDateRange] = useState('7d');
   const [changeTypeFilter, setChangeTypeFilter] = useState('');
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => {
+    return localStorage.getItem('autoSyncEnabled') === 'true';
+  });
   const [selectedProductName, setSelectedProductName] = useState(null);
   const [changes, setChanges] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,6 +58,10 @@ export default function Products() {
   const [visibleCount, setVisibleCount] = useState(20);
   const [showReport, setShowReport] = useState(false);
   const shopParam = new URLSearchParams(window.location.search).get('shop');
+
+  useEffect(() => {
+    localStorage.setItem('autoSyncEnabled', String(autoSyncEnabled));
+  }, [autoSyncEnabled]);
 
   const dataSource = fetchError ? mockChanges : changes;
   const sortedChanges = useMemo(
@@ -240,6 +247,8 @@ export default function Products() {
         <DashboardHeader
           searchValue={searchValue}
           onSearchChange={setSearchValue}
+          autoSyncEnabled={autoSyncEnabled}
+          onAutoSyncToggle={setAutoSyncEnabled}
           totalResults={sortedChanges.length}
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
@@ -393,7 +402,12 @@ export default function Products() {
             </div>
 
             <div className="w-72 flex-shrink-0 space-y-4">
-              <SyncManagementPanel onSyncComplete={fetchChanges} />
+              <div className={autoSyncEnabled ? 'hidden' : ''}>
+                <SyncManagementPanel
+                  onSyncComplete={fetchChanges}
+                  autoSyncEnabled={autoSyncEnabled}
+                />
+              </div>
               <StorefrontWidget recentChanges={sortedChanges.slice(0, 5)} />
               <ActivityChart data={activityChartData} />
 

@@ -132,7 +132,7 @@ export function StorefrontWidget({ recentChanges = [] }) {
             return (
               <div
                 key={change.id ?? i}
-                className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors cursor-pointer group"
+                className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors group"
               >
                 <div className={`${cfg.iconBg} ${cfg.iconColor} p-2 rounded-lg flex-shrink-0 mt-0.5`}>
                   <Icon size={13} />
@@ -154,7 +154,7 @@ export function StorefrontWidget({ recentChanges = [] }) {
                     )}
                   </div>
                 </div>
-                <ExternalLink size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors flex-shrink-0 mt-1" />
+                {/* <ExternalLink size={12} className="text-gray-300 group-hover:text-gray-500 transition-colors flex-shrink-0 mt-1" /> */}
               </div>
             );
           })

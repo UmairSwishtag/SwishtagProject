@@ -58,6 +58,9 @@ export default function MainDashboard() {
   const [searchValue, setSearchValue] = useState('');
   const [activeTab, setActiveTab] = useState('all'); 
   const [changeTypeFilter, setChangeTypeFilter] = useState('');
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(() => {
+    return localStorage.getItem('autoSyncEnabled') === 'true';
+  });
   const [selectedProductName, setSelectedProductName] = useState(null);
   const [changes, setChanges] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,6 +75,10 @@ export default function MainDashboard() {
   from: '',
   to: '',
 });
+
+  useEffect(() => {
+    localStorage.setItem('autoSyncEnabled', String(autoSyncEnabled));
+  }, [autoSyncEnabled]);
   // Only fall back to mock data if there's a fetch error (API unreachable)
   const dataSource = fetchError ? mockChanges : changes;
  const sortedChanges = useMemo(
@@ -235,7 +242,7 @@ if (dateRange.from || dateRange.to) {
   const handleReset = () => {
     setSearchValue('');
     setActiveTab('all');
-    setDateRange('7d');
+    setDateRange({ from: '', to: '' });
     setChangeTypeFilter('');
   };
 
@@ -302,6 +309,8 @@ if (dateRange.from || dateRange.to) {
         <DashboardHeader
           searchValue={searchValue}
           onSearchChange={setSearchValue}
+          autoSyncEnabled={autoSyncEnabled}
+          onAutoSyncToggle={setAutoSyncEnabled}
           totalResults={sortedChanges.length}
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
@@ -468,7 +477,12 @@ if (dateRange.from || dateRange.to) {
             </div>
 
             <div className="w-72 flex-shrink-0 space-y-4">
-              <SyncManagementPanel onSyncComplete={fetchChanges} />
+              <div className={autoSyncEnabled ? 'hidden' : ''}>
+                <SyncManagementPanel
+                  onSyncComplete={fetchChanges}
+                  autoSyncEnabled={autoSyncEnabled}
+                />
+              </div>
               <StorefrontWidget recentChanges={sortedChanges.slice(0, 5)} />
               <ActivityChart data={activityChartData} />
 

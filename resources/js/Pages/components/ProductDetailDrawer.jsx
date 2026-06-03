@@ -107,7 +107,13 @@ export function ProductDetailDrawer({ isOpen, onClose, product }) {
     }
     return () => {
       document.body.style.overflow = '';}
-  }, [isOpen]);
+      }, [isOpen]);
+  
+      const [activeTab, setActiveTab] = useState('all');
+  
+      useEffect(() => {
+        setActiveTab('all');
+      }, [product?.id, isOpen]);
 
   if (!product) return null;
 
@@ -117,7 +123,26 @@ export function ProductDetailDrawer({ isOpen, onClose, product }) {
     window.open(productUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const grouped = groupByDate(product.changes);
+      const filteredChanges = product.changes.filter((change) => {
+        if (activeTab === 'all') return true;
+        return change.changeType === activeTab;
+      });
+  
+      const tabCounts = {
+        all: product.changes.length,
+        price: product.changes.filter((change) => change.changeType === 'price').length,
+        inventory: product.changes.filter((change) => change.changeType === 'inventory').length,
+        content: product.changes.filter((change) => change.changeType === 'content').length,
+      };
+  
+      const tabs = [
+        { key: 'all', label: 'All Changes' },
+        { key: 'price', label: 'Price' },
+        { key: 'inventory', label: 'Inventory' },
+        { key: 'content', label: 'Content' },
+      ];
+  
+      const grouped = groupByDate(filteredChanges);
   const dateGroups = Object.entries(grouped);
 
   return (
@@ -195,12 +220,38 @@ export function ProductDetailDrawer({ isOpen, onClose, product }) {
           <div className="px-6 py-5">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-gray-900 flex items-center gap-2">Change History
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">{product.changes.length} events</span>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full border border-gray-200">{filteredChanges.length} events</span>
               </h3>
             </div>
 
+                <div className="flex items-center gap-2 border-b border-gray-100 mb-4 overflow-x-auto">
+                  {tabs.map((tab) => {
+                    const isActive = activeTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex items-center gap-1.5 px-2 py-2 text-sm border-b-2 transition-colors whitespace-nowrap ${
+                          isActive
+                            ? 'text-gray-900 border-gray-900'
+                            : 'text-gray-500 border-transparent hover:text-gray-700'
+                        }`}
+                      >
+                        <span>{tab.label}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full border ${
+                          isActive
+                            ? 'bg-gray-900 text-white border-gray-900'
+                            : 'bg-gray-100 text-gray-500 border-gray-200'
+                        }`}>
+                          {tabCounts[tab.key]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
             {dateGroups.length === 0 ? (
-              <div className="text-center py-8 text-gray-400 text-sm">No changes recorded yet.</div>
+              <div className="text-center py-8 text-gray-400 text-sm">No changes found for this tab.</div>
             ) : (
               <div className="space-y-6">
                 {dateGroups.map(([dateLabel, changes], groupIdx) => (

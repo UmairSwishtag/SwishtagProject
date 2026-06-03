@@ -73,7 +73,7 @@ export function WebhookStatusBar({ recentChanges = [] }) {
       <div className="hidden sm:flex items-center relative" onMouseEnter={() => setShowTooltip(true)} onMouseLeave={() => setShowTooltip(false)}>
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-emerald-200 text-emerald-700 rounded-full cursor-default shadow-xs">
           <Zap size={10} className="text-emerald-500" />
-          Auto-updated via Shopify webhooks
+          Auto-updated
         </span>
 
         {showTooltip && (

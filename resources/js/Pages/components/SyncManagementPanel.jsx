@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { RefreshCw, CheckCircle2, AlertTriangle, Package, Clock, ChevronDown, RotateCcw } from 'lucide-react';
 
-export function SyncManagementPanel({ onSyncComplete }) {
+const AUTO_SYNC_INTERVAL_MS = 60000;
+
+export function SyncManagementPanel({ onSyncComplete, autoSyncEnabled = false }) {
   const [status, setStatus] = useState('idle');
   const [lastSyncedText, setLastSyncedText] = useState(() => localStorage.getItem('syncLastText') || 'Never');
   const [totalProducts, setTotalProducts] = useState(() => Number(localStorage.getItem('syncTotalProducts') || 0));
@@ -19,7 +21,7 @@ export function SyncManagementPanel({ onSyncComplete }) {
     }
   };
 
-  const handleSync = async () => {
+  const handleSync = useCallback(async () => {
     if (status === 'syncing') return;
 
     cleanup();
@@ -94,11 +96,22 @@ export function SyncManagementPanel({ onSyncComplete }) {
         ...prev.slice(0, 9),
       ]);
     }
-  };
+  }, [status, shopParam, onSyncComplete]);
 
   useEffect(() => {
     return cleanup;
   }, []);
+
+  useEffect(() => {
+    if (!autoSyncEnabled) return;
+
+    handleSync();
+    const interval = setInterval(() => {
+      handleSync();
+    }, AUTO_SYNC_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [autoSyncEnabled, handleSync]);
 
   const statusConfig = {
     idle: {
@@ -147,7 +160,9 @@ export function SyncManagementPanel({ onSyncComplete }) {
           </div>
           <div>
             <h3 className="text-sm text-gray-900">Product Sync</h3>
-            <p className="text-xs text-gray-400">Shopify GraphQL API</p>
+            <p className="text-xs text-gray-400">
+              Shopify GraphQL API{autoSyncEnabled ? ' · Auto sync on' : ''}
+            </p>
           </div>
         </div>
 

@@ -2,18 +2,14 @@
 
 namespace App\Http\Traits;
 
-use App\Models\User;
 use Osiset\ShopifyApp\Util;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
-use Illuminate\Http\RedirectResponse;
-use App\Providers\RouteServiceProvider;
-use Illuminate\Contracts\View\View as ViewView;
+use Illuminate\Support\Facades\Redirect;
 use Osiset\ShopifyApp\Actions\AuthenticateShop;
 use Osiset\ShopifyApp\Objects\Values\ShopDomain;
 use Osiset\ShopifyApp\Exceptions\MissingAuthUrlException;
 use Osiset\ShopifyApp\Exceptions\SignatureVerificationException;
-use Illuminate\Support\Facades\Auth;
 
 /**
  * Responsible for authenticating the shop.
@@ -64,12 +60,15 @@ trait ShopifyAuthTrait
                 ]
             );
         } else {
-            $user_id = $result['shop_id']->toNative();
-            if($request->has('hmac') && $request->has('host')){
-                $user = User::find($user_id);
-            }
-            Auth::loginUsingId($user_id);
-            return redirect()->intended(RouteServiceProvider::$home);
+            // Embedded flow requires shop + host to continue App Bridge token handshake.
+            return Redirect::route(
+                Util::getShopifyConfig('route_names.home'),
+                [
+                    'shop' => $shopDomain->toNative(),
+                    'host' => $request->get('host'),
+                    'locale' => $request->get('locale'),
+                ]
+            );
 
         }
     }
@@ -95,15 +94,25 @@ trait ShopifyAuthTrait
             $params = Util::parseQueryString($query);
             $params['shop'] = $params['shop'] ?? $shopDomain->toNative() ?? '';
             $params['host'] = $request->get('host');
+            $params['locale'] = $request->get('locale');
             unset($params['token']);
 
             $cleanTarget = trim(explode('?', $target)[0] . '?' . http_build_query($params), '?');
         } else {
-            $params = ['shop' => $shopDomain->toNative() ?? '', 'host' => $request->get('host')];
+            $params = [
+                'shop' => $shopDomain->toNative() ?? '',
+                'host' => $request->get('host'),
+                'locale' => $request->get('locale'),
+            ];
             $cleanTarget = trim(explode('?', $target)[0] . '?' . http_build_query($params), '?');
         }
-        $user = User::firstWhere('name', $shopDomain->toNative());
-        Auth::login($user);
-        return redirect()->intended(RouteServiceProvider::$home);
+
+        return View::make(
+            'shopify-app::auth.token',
+            [
+                'shopDomain' => $shopDomain->toNative(),
+                'target' => $cleanTarget,
+            ]
+        );
     }
 }

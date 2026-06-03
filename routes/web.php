@@ -131,6 +131,40 @@ Route::get('/proxy/price-change', function (\Illuminate\Http\Request $request) {
             ->first();
     }
 
+    if (!$change) {
+        $variantFallbackQuery = \App\Models\Products\ProductVarient::query()
+            ->where('product_id', $product->id);
+
+        if ($variantId !== '') {
+            $variantFallbackQuery->where('shopify_product_varient_id', $variantId);
+        }
+
+        $variantFallback = $variantFallbackQuery->first();
+
+        if (!$variantFallback && $variantId !== '') {
+            $variantFallback = \App\Models\Products\ProductVarient::query()
+                ->where('product_id', $product->id)
+                ->whereNotNull('compare_at_price')
+                ->whereNotNull('price')
+                ->first();
+        }
+
+        $oldFromCompare = is_numeric($variantFallback?->compare_at_price)
+            ? (float) $variantFallback->compare_at_price
+            : null;
+        $newFromPrice = is_numeric($variantFallback?->price)
+            ? (float) $variantFallback->price
+            : null;
+
+        if ($oldFromCompare !== null && $newFromPrice !== null && $oldFromCompare > $newFromPrice) {
+            return response()->json([
+                'hasChange' => true,
+                'oldPrice'  => $oldFromCompare,
+                'newPrice'  => $newFromPrice,
+            ]);
+        }
+    }
+
     if (!$change || (string) $change->old_value === (string) $change->new_value) {
         return response()->json(['hasChange' => false]);
     }

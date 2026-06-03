@@ -158,7 +158,33 @@ Route::get('/storefront/product-price-change', function (Request $request) {
     ->first();
 
 if (!$latestPriceChange) {
-    return response()->json(['hasChange' => false]);
+    $variantFallback = \App\Models\Products\ProductVarient::query()
+        ->where('product_id', $product->id)
+        ->whereNotNull('compare_at_price')
+        ->whereNotNull('price')
+        ->first();
+
+    $oldFromCompare = is_numeric($variantFallback?->compare_at_price)
+        ? (float) $variantFallback->compare_at_price
+        : null;
+    $newFromPrice = is_numeric($variantFallback?->price)
+        ? (float) $variantFallback->price
+        : null;
+
+    if ($oldFromCompare === null || $newFromPrice === null || $oldFromCompare <= $newFromPrice) {
+        return response()->json(['hasChange' => false]);
+    }
+
+    $origin = request()->header('Origin', '');
+    $allowOrigin = preg_match('/^https:\/\/[a-z0-9\-]+\.myshopify\.com$/', $origin) ? $origin : '*';
+
+    return response()->json([
+        'hasChange' => true,
+        'oldPrice' => $oldFromCompare,
+        'newPrice' => $newFromPrice,
+    ])->header('Access-Control-Allow-Origin', $allowOrigin)
+      ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+      ->header('Access-Control-Allow-Headers', 'Content-Type');
 }
 
 $origin = request()->header('Origin', '');
